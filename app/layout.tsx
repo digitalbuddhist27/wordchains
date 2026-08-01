@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { ThemeScript } from "@/components/ThemeToggle";
+import { MusicLink } from "@/components/MusicLink";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -49,7 +50,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <ThemeScript />
       </head>
-      <body className="min-h-full font-sans flex flex-col">{children}</body>
+      <body className="min-h-full font-sans flex flex-col">
+        {children}
+        <MusicLink />
+      </body>
     </html>
   );
 }
