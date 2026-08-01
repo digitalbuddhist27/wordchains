@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Users, User } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { LogoMark, Wordmark } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HowToPlay } from "@/components/HowToPlay";
@@ -44,21 +44,6 @@ export default function Home() {
       </Link>
 
       <SetupPanel chainCount={CHAINS.length} />
-
-      <div className="mt-8 grid grid-cols-2 gap-3 text-center text-xs text-black/50 dark:text-white/50">
-        <div className="rounded-2xl border border-black/10 p-3 dark:border-white/10">
-          <User size={16} className="mx-auto mb-1 text-brand" />
-          Solo practice runs at your own pace.
-        </div>
-        <div className="rounded-2xl border border-black/10 p-3 dark:border-white/10">
-          <Users size={16} className="mx-auto mb-1 text-chain" />
-          Pass and play on one phone, up to 6 players.
-        </div>
-      </div>
-
-      <footer className="mt-10 text-center text-xs text-black/40 dark:text-white/40">
-        {CHAINS.length} chains and counting.
-      </footer>
     </main>
   );
 }
