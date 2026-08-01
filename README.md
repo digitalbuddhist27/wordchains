@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Word Chains
 
-## Getting Started
+A word-association chain game. One word leads to the next.
 
-First, run the development server:
+Live: https://playwordchains.com
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## How it works
+Every consecutive pair of words in a chain forms a compound word or common
+two-word phrase (SUN + FLOWER, FLOWER + POT). Only the first word is given.
+Guess right and you keep your turn; miss and one more letter is revealed and
+the chain passes to the next player.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Modes
+- Solo practice
+- Pass and play (2 to 6 players, one device)
+- Daily Chain (same puzzle for everyone, spoiler-free share card)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
+Next.js 16 (App Router) + Tailwind v4. No database: the chain library lives in
+`lib/chains.ts` and ships with the build, and session state is client-side.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Adding chains
+Append to the array in `lib/chains.ts` and push. Railway rebuilds on push and
+`/api/chains` serves the new set.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Local dev
+    npm install
+    npm run dev -- --port 3140

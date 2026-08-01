@@ -1,0 +1,21 @@
+/** The Word Chains mark as a standalone SVG string, for next/og images. */
+export function markSvg(width = 200) {
+  const height = Math.round((width * 132) / 200);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 132" width="${width}" height="${height}">
+<g fill="none" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+<path d="M60 12H34C21.85 12 12 21.85 12 34v30c0 12.15 9.85 22 22 22h1.5l-6 20 26-20H60" stroke="#22C55E"/>
+<path d="M60 12h6c12.15 0 22 9.85 22 22v6" stroke="#22C55E"/>
+<path d="M88 60v4c0 12.15-9.85 22-22 22h-6" stroke="#22C55E"/>
+<path d="M140 12h26c12.15 0 22 9.85 22 22v30c0 12.15-9.85 22-22 22h-1.5l6 20-26-20h-4.5" stroke="#6C5CE7"/>
+<path d="M140 12h-6c-12.15 0-22 9.85-22 22v6" stroke="#6C5CE7"/>
+<path d="M112 60v4c0 12.15 9.85 22 22 22h6" stroke="#6C5CE7"/>
+<path d="M32 38l7 24 8-17 8 17 7-24" stroke="#22C55E" stroke-width="10"/>
+<path d="M166 40a15 15 0 100 22" stroke="#6C5CE7" stroke-width="10"/>
+</g>
+<rect x="82" y="43" width="36" height="15" rx="7.5" fill="#6C5CE7"/>
+</svg>`;
+}
+
+export function markDataUri(width = 200) {
+  return `data:image/svg+xml;base64,${Buffer.from(markSvg(width)).toString("base64")}`;
+}
