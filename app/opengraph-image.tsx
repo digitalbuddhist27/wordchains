@@ -1,11 +1,12 @@
 import { ImageResponse } from "next/og";
 import { markDataUri } from "@/lib/mark";
+import { poppins } from "@/lib/og-fonts";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "Word Chains: one word leads to the next.";
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
   return new ImageResponse(
     (
       <div
@@ -17,7 +18,7 @@ export default function OpenGraphImage() {
           alignItems: "center",
           justifyContent: "center",
           background: "#0F172A",
-          fontFamily: "sans-serif",
+          fontFamily: "Poppins",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -34,6 +35,6 @@ export default function OpenGraphImage() {
         </div>
       </div>
     ),
-    size
+    { ...size, fonts: await poppins() }
   );
 }

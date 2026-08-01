@@ -20,8 +20,12 @@ Next.js 16 (App Router) + Tailwind v4. No database: the chain library lives in
 `lib/chains.ts` and ships with the build, and session state is client-side.
 
 ## Adding chains
-Append to the array in `lib/chains.ts` and push. Railway rebuilds on push and
-`/api/chains` serves the new set.
+Append to the array in `lib/chains.ts`, commit, then redeploy:
+
+    git push
+    railway up --service wordchains --detach
+
+`/api/chains` serves the new set. No DB migration, no seed script.
 
 ## Local dev
     npm install
