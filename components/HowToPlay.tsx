@@ -10,7 +10,7 @@ const STEPS = [
     icon: Link2,
     color: "#22C55E",
     title: "Each word is the second half of a phrase from the last.",
-    body: "SUN then FLOWER (sunflower), then POT (flowerpot), and on down the chain.",
+    body: "WATER then FALL (waterfall), then BACK (fallback), and on down the chain.",
   },
   {
     icon: Lightbulb,

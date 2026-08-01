@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Users } from "lucide-react";
 import { LogoMark, Wordmark } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HowToPlay } from "@/components/HowToPlay";
@@ -41,6 +41,22 @@ export default function Home() {
           </span>
         </span>
         <span className="text-sm font-semibold text-chain">Play</span>
+      </Link>
+
+      <Link
+        href="/online"
+        className="mt-3 flex items-center gap-4 rounded-3xl border-2 border-brand/30 bg-white p-5 transition hover:border-brand dark:bg-white/5"
+      >
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-chain">
+          <Users size={20} className="text-white" />
+        </span>
+        <span className="flex-1">
+          <span className="block font-semibold">Play online</span>
+          <span className="block text-sm text-black/55 dark:text-white/55">
+            Room code, everyone on their own phone.
+          </span>
+        </span>
+        <span className="text-sm font-semibold text-brand">Start</span>
       </Link>
 
       <SetupPanel chainCount={CHAINS.length} />

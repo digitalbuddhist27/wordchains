@@ -15,6 +15,8 @@ export function GuessInput({
   word,
   revealed,
   focusKey,
+  placeholderOverride,
+  maxLengthOverride,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -23,6 +25,9 @@ export function GuessInput({
   revealed: number;
   /** Changing this re-focuses the field (new word, or turn handoff). */
   focusKey: string;
+  /** Online play sends the hint down already masked, so it is passed in. */
+  placeholderOverride?: string;
+  maxLengthOverride?: number;
 }) {
   const ref = useRef<HTMLInputElement>(null);
 
@@ -33,12 +38,14 @@ export function GuessInput({
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusKey]);
 
-  const hint = word.slice(0, revealed) + " _".repeat(Math.max(word.length - revealed, 0));
+  const hint =
+    placeholderOverride ?? word.slice(0, revealed) + " _".repeat(Math.max(word.length - revealed, 0));
+  const maxLength = maxLengthOverride ?? word.length;
 
   return (
     <div className="flex w-full items-center gap-2">
       <label htmlFor="guess" className="sr-only">
-        Guess word {word.length} letters, starting with {word.slice(0, revealed)}
+        Guess the word, {maxLength} letters
       </label>
       <input
         id="guess"
@@ -51,7 +58,7 @@ export function GuessInput({
             onSubmit();
           }
         }}
-        maxLength={word.length}
+        maxLength={maxLength}
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="characters"

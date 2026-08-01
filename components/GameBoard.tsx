@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Eye, RotateCw, Share2, Trophy } from "lucide-react";
 import { GuessInput } from "./GuessInput";
+
+const SITE_URL = "https://playwordchains.com";
 import type { Chain } from "@/lib/chains";
 import {
   initGame,
@@ -93,12 +95,14 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
 
   async function share() {
     const grid = shareGrid(state);
-    const text = `${shareTitle ?? "Word Chains"}\n${grid}\n${summary.totalScore} pts, ${summary.totalHints} letters used\nplaywordchains.com`;
+    const text = `${shareTitle ?? "Word Chains"}\n${grid}\n${summary.totalScore} pts, ${summary.totalHints} letters used`;
     try {
+      // Pass url separately so the OS attaches a real link and renders the
+      // OpenGraph card. A bare domain in the text body stays unclickable.
       if (navigator.share) {
-        await navigator.share({ text });
+        await navigator.share({ title: "Word Chains", text, url: SITE_URL });
       } else {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(`${text}\n${SITE_URL}`);
         setCopied(true);
         setTimeout(() => setCopied(false), 2200);
       }

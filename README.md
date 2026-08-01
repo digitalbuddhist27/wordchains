@@ -6,7 +6,7 @@ Live: https://playwordchains.com
 
 ## How it works
 Every consecutive pair of words in a chain forms a compound word or common
-two-word phrase (SUN + FLOWER, FLOWER + POT). Only the first word is given.
+two-word phrase (WATER + FALL, FALL + BACK). Only the first word is given.
 Guess right and you keep your turn; miss and one more letter is revealed and
 the chain passes to the next player.
 
