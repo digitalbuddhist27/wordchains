@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Eye, RotateCw, Share2, Trophy } from "lucide-react";
+import { GuessInput } from "./GuessInput";
 import type { Chain } from "@/lib/chains";
 import {
   initGame,
@@ -32,16 +33,11 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
   const [shaking, setShaking] = useState(false);
   const [flash, setFlash] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const boardEndRef = useRef<HTMLDivElement>(null);
 
   const solo = state.players.length === 1;
   const active = state.currentIndex;
   const done = state.status === "complete";
-
-  useEffect(() => {
-    if (!done) inputRef.current?.focus();
-  }, [state.currentPlayer, state.currentIndex, done]);
 
   useEffect(() => {
     const e = state.lastEvent;
@@ -156,7 +152,18 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
               shaking={shaking && i === active}
               justSolved={flash === i}
               position={i + 1}
-            />
+            >
+              {i === active && !done ? (
+                <GuessInput
+                  value={guess}
+                  onChange={setGuess}
+                  onSubmit={handleSubmit}
+                  word={w}
+                  revealed={state.revealed[i]}
+                  focusKey={`${i}-${state.currentPlayer}-${state.revealed[i]}`}
+                />
+              ) : null}
+            </WordTile>
           </div>
         ))}
         <div ref={boardEndRef} />
@@ -265,54 +272,14 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
           </div>
         </div>
       ) : (
-        <form
-          onSubmit={handleSubmit}
-          className="fixed inset-x-0 bottom-0 z-10 border-t border-black/10 bg-mist/95 p-3 backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/95 sm:static sm:mt-6 sm:rounded-2xl sm:border sm:bg-white sm:p-3 sm:backdrop-blur-none dark:sm:bg-white/5"
+        <button
+          type="button"
+          onClick={handlePass}
+          className="mx-auto mt-5 flex items-center gap-1.5 rounded-xl border border-black/15 px-4 py-2.5 text-xs font-semibold text-black/60 transition hover:border-brand/50 hover:text-brand dark:border-white/20 dark:text-white/60"
         >
-          <div className="mx-auto flex w-full max-w-xl gap-2">
-            <label htmlFor="guess" className="sr-only">
-              Your guess
-            </label>
-            <input
-              id="guess"
-              ref={inputRef}
-              value={guess}
-              onChange={(e) => setGuess(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              placeholder={
-                active >= 0
-                  ? `${chain.words[active].slice(0, state.revealed[active])}${"_".repeat(
-                      Math.max(chain.words[active].length - state.revealed[active], 0)
-                    )}`
-                  : ""
-              }
-              className="min-w-0 flex-1 rounded-xl border-2 border-black/10 bg-white px-4 py-3 text-lg font-semibold uppercase tracking-widest outline-none transition placeholder:tracking-[0.3em] placeholder:text-black/25 focus:border-brand dark:border-white/15 dark:bg-white/5 dark:placeholder:text-white/25"
-            />
-            <button
-              type="submit"
-              className="rounded-xl bg-brand px-5 py-3 font-semibold text-white transition hover:bg-brand-dark disabled:opacity-40"
-              disabled={!guess.trim()}
-            >
-              Guess
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={handlePass}
-            className="mx-auto mt-2 flex items-center gap-1.5 text-xs font-semibold text-black/50 transition hover:text-brand dark:text-white/50"
-          >
-            <Eye size={14} />
-            Stuck? Reveal a letter{solo ? "" : " and pass"}
-          </button>
-        </form>
+          <Eye size={14} />
+          Stuck? Reveal a letter{solo ? "" : " and pass"}
+        </button>
       )}
     </div>
   );

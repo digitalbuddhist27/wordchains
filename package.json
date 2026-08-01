@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-chains.mjs && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:chains": "node scripts/check-chains.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.28.0",

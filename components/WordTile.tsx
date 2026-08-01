@@ -12,6 +12,8 @@ type Props = {
   shaking: boolean;
   justSolved: boolean;
   position: number;
+  /** When active, the guess input renders inside the tile itself. */
+  children?: React.ReactNode;
 };
 
 export function WordTile({
@@ -23,6 +25,7 @@ export function WordTile({
   shaking,
   justSolved,
   position,
+  children,
 }: Props) {
   const slots = letterSlots(word, revealed, solved);
 
@@ -44,10 +47,12 @@ export function WordTile({
   return (
     <div
       className={`${base} ${tone} ${shaking ? "wc-shake" : ""} ${justSolved ? "wc-flip" : ""}`}
-      aria-label={label}
+      aria-label={children ? undefined : label}
       aria-current={active ? "step" : undefined}
     >
-      {solved ? (
+      {children ? (
+        children
+      ) : solved ? (
         <span className="text-xl font-bold tracking-[0.14em] sm:text-2xl">{word}</span>
       ) : (
         <span className="flex items-end gap-1.5" aria-hidden="true">
@@ -58,7 +63,7 @@ export function WordTile({
                   s.char ? "" : "text-transparent"
                 } ${s.char && s.key === revealed - 1 && revealed > 1 ? "wc-pop text-brand" : ""}`}
               >
-                {s.char ?? " "}
+                {s.char ?? " "}
               </span>
               <span className="mt-1 h-0.5 w-full rounded bg-black/25 dark:bg-white/30" />
             </span>
