@@ -1,24 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Chain } from "@/lib/chains";
+import { generateChain, type Chain, type Difficulty } from "@/lib/chains";
 import { makePlayers } from "@/lib/game";
 import { GameBoard } from "@/components/GameBoard";
 
-export function PlayClient({ pool, names }: { pool: Chain[]; names: string[] }) {
+export function PlayClient({
+  difficulty,
+  names,
+}: {
+  difficulty: Difficulty;
+  names: string[];
+}) {
   const [chain, setChain] = useState<Chain | null>(null);
   const [round, setRound] = useState(0);
 
-  // Picked on the client so the server render stays cacheable and every
-  // "New chain" gives a fresh pull without a round trip.
-  const pick = useCallback(() => {
-    setChain(pool[Math.floor(Math.random() * pool.length)]);
+  // Walked on the client so every "New chain" is a fresh generation with no
+  // round trip, and the server render stays cacheable.
+  const deal = useCallback(() => {
+    setChain(generateChain(difficulty));
     setRound((r) => r + 1);
-  }, [pool]);
+  }, [difficulty]);
 
   useEffect(() => {
-    pick();
-  }, [pick]);
+    deal();
+  }, [deal]);
 
   if (!chain) {
     return (
@@ -39,7 +45,7 @@ export function PlayClient({ pool, names }: { pool: Chain[]; names: string[] }) 
         chain={chain}
         mode={names.length > 1 ? "pass_and_play" : "solo"}
         players={makePlayers(names)}
-        onReplay={pick}
+        onReplay={deal}
       />
     </main>
   );

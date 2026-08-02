@@ -1,4 +1,4 @@
-import { chainsByDifficulty, type Chain, type Difficulty } from "./chains";
+import { generateChain, type Chain, type Difficulty } from "./chains";
 import {
   initGame,
   miss,
@@ -49,8 +49,9 @@ function randomCode(): string {
 }
 
 function pickChain(difficulty: Difficulty): Chain {
-  const pool = chainsByDifficulty(difficulty);
-  return pool[Math.floor(Math.random() * pool.length)];
+  const chain = generateChain(difficulty);
+  if (!chain) throw new Error(`could not generate a ${difficulty} chain`);
+  return chain;
 }
 
 function touch(room: Room) {

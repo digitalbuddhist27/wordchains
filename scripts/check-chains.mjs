@@ -1,46 +1,77 @@
 /**
- * Guards the chain library. Run by `npm run check:chains`, which `npm run build`
- * depends on, so a bad chain fails the build instead of reaching players.
+ * Guards the link graph. Run by `npm run check:chains`, which `npm run build`
+ * depends on, so a bad link fails the build instead of reaching players.
  *
- * Checks: minimum word length, no repeated word inside one chain, and no
- * duplicate chains.
+ * Checks: minimum word length, no self-links, no duplicate pairs, and that the
+ * graph can actually produce a full chain at every difficulty.
  */
 import { readFileSync } from "node:fs";
 
-const src = readFileSync(new URL("../lib/chains.ts", import.meta.url), "utf8");
+const linksSrc = readFileSync(new URL("../lib/links.ts", import.meta.url), "utf8");
+const chainsSrc = readFileSync(new URL("../lib/chains.ts", import.meta.url), "utf8");
 
-const MIN = Number(src.match(/MIN_WORD_LENGTH = (\d+)/)?.[1] ?? 4);
-const rows = [...src.matchAll(/words: \[([^\]]+)\]/g)].map((m) =>
-  m[1].split(",").map((w) => w.trim().replace(/"/g, ""))
-);
-
-if (rows.length === 0) {
-  console.error("check:chains — found no chains to check");
-  process.exit(1);
-}
+const MIN = Number(chainsSrc.match(/MIN_WORD_LENGTH = (\d+)/)?.[1] ?? 4);
+const pairs = [...linksSrc.matchAll(/\["([A-Z]+)", "([A-Z]+)", ([123])\]/g)].map((m) => [
+  m[1],
+  m[2],
+  Number(m[3]),
+]);
 
 const errors = [];
-const seen = new Map();
+if (pairs.length === 0) errors.push("found no links to check");
 
-for (const words of rows) {
-  const label = words.join(" > ");
+const seen = new Set();
+for (const [from, to, tier] of pairs) {
+  if (from.length < MIN) errors.push(`"${from}" is under ${MIN} letters (${from} + ${to})`);
+  if (to.length < MIN) errors.push(`"${to}" is under ${MIN} letters (${from} + ${to})`);
+  if (from === to) errors.push(`self-link: ${from} + ${to}`);
+  if (![1, 2, 3].includes(tier)) errors.push(`bad tier ${tier} on ${from} + ${to}`);
+  const key = `${from}>${to}`;
+  if (seen.has(key)) errors.push(`duplicate pair: ${from} + ${to}`);
+  seen.add(key);
+}
 
-  const short = words.filter((w) => w.length < MIN);
-  if (short.length) errors.push(`under ${MIN} letters (${short.join(", ")}): ${label}`);
+// Can the graph actually walk a full chain at each difficulty?
+const adjacency = new Map();
+for (const [from, to, tier] of pairs) {
+  for (const ceiling of [1, 2, 3]) {
+    if (tier > ceiling) continue;
+    const k = `${ceiling}:${from}`;
+    adjacency.set(k, [...(adjacency.get(k) ?? []), to]);
+  }
+}
 
-  const dupes = words.filter((w, i) => words.indexOf(w) !== i);
-  if (dupes.length) errors.push(`repeats ${[...new Set(dupes)].join(", ")}: ${label}`);
+function longestFrom(start, ceiling, used = new Set()) {
+  used.add(start);
+  let best = 1;
+  for (const next of adjacency.get(`${ceiling}:${start}`) ?? []) {
+    if (used.has(next)) continue;
+    best = Math.max(best, 1 + longestFrom(next, ceiling, used));
+    if (best > 12) break;
+  }
+  used.delete(start);
+  return best;
+}
 
-  const key = words.join("|");
-  if (seen.has(key)) errors.push(`duplicate chain: ${label}`);
-  seen.set(key, true);
+const NEEDED = { easy: [6, 1], medium: [7, 2], hard: [8, 3] };
+const reachable = {};
+for (const [name, [length, ceiling]] of Object.entries(NEEDED)) {
+  const starts = [...new Set(pairs.filter(([, , t]) => t <= ceiling).map(([f]) => f))];
+  const ok = starts.filter((s) => longestFrom(s, ceiling) >= length);
+  reachable[name] = ok.length;
+  if (ok.length === 0) {
+    errors.push(`graph cannot build a ${length}-word ${name} chain at tier <= ${ceiling}`);
+  }
 }
 
 if (errors.length) {
   console.error(`check:chains FAILED (${errors.length})`);
-  for (const e of errors) console.error("  " + e);
+  for (const e of errors.slice(0, 40)) console.error("  " + e);
   process.exit(1);
 }
 
-const total = rows.reduce((n, w) => n + w.length, 0);
-console.log(`check:chains OK — ${rows.length} chains, ${total} words, all >= ${MIN} letters`);
+const words = new Set(pairs.flatMap(([f, t]) => [f, t]));
+console.log(
+  `check:chains OK — ${pairs.length} links, ${words.size} words, all >= ${MIN} letters. ` +
+    `Valid start words: easy ${reachable.easy}, medium ${reachable.medium}, hard ${reachable.hard}.`
+);

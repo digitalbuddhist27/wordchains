@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/SiteHeader";
 import { PlayClient } from "./PlayClient";
-import { chainsByDifficulty, type Difficulty } from "@/lib/chains";
+import type { Difficulty } from "@/lib/chains";
 
 export const metadata = { title: "Play" };
 
@@ -22,12 +22,10 @@ export default async function PlayPage({
     .filter(Boolean)
     .slice(0, 6);
 
-  const pool = chainsByDifficulty(difficulty);
-
   return (
     <>
       <SiteHeader />
-      <PlayClient pool={pool} names={names.length ? names : ["Player 1"]} />
+      <PlayClient difficulty={difficulty} names={names.length ? names : ["Player 1"]} />
     </>
   );
 }
