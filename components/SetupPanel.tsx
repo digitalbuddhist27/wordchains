@@ -11,7 +11,7 @@ const DIFFICULTIES: { key: Difficulty; label: string; hint: string }[] = [
   { key: "hard", label: "Hard", hint: "8 words, no mercy" },
 ];
 
-export function SetupPanel({ chainCount }: { chainCount: number }) {
+export function SetupPanel() {
   const router = useRouter();
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [names, setNames] = useState<string[]>(["Player 1"]);
@@ -118,9 +118,6 @@ export function SetupPanel({ chainCount }: { chainCount: number }) {
       >
         Start chain
       </button>
-      <p className="mt-2 text-center text-[11px] text-black/40 dark:text-white/40">
-        Pulled at random from {chainCount} curated chains.
-      </p>
     </section>
   );
 }

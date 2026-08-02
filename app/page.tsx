@@ -5,7 +5,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { HowToPlay } from "@/components/HowToPlay";
 import { SetupPanel } from "@/components/SetupPanel";
 import { dailyNumber } from "@/lib/daily";
-import { CHAINS } from "@/lib/chains";
 
 export default function Home() {
   return (
@@ -59,7 +58,7 @@ export default function Home() {
         <span className="text-sm font-semibold text-brand">Start</span>
       </Link>
 
-      <SetupPanel chainCount={CHAINS.length} />
+      <SetupPanel />
     </main>
   );
 }
