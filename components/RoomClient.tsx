@@ -175,8 +175,86 @@ export function RoomClient({ code }: { code: string }) {
         </p>
       )}
 
+      {/* Match scoreboard: totals across every round, plus where we are */}
+      {room.roundNumber > 0 && (
+        <div className="mt-3 rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-black/45 dark:text-white/45">
+              Match total
+            </span>
+            <span className="text-[11px] font-semibold text-brand">
+              {room.matchOver
+                ? `${room.totalRounds} of ${room.totalRounds} done`
+                : `Round ${room.roundNumber}/${room.totalRounds}`}
+            </span>
+          </div>
+          <div className="mt-2 space-y-1">
+            {room.matchTotals.map((t, i) => (
+              <div key={t.playerId} className="flex items-center gap-2 text-sm">
+                <span className="w-4 text-[11px] font-semibold text-black/35 dark:text-white/35">
+                  {i + 1}
+                </span>
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: t.color, opacity: t.online ? 1 : 0.3 }}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate font-semibold">
+                  {t.name}
+                  {t.playerId === me.current && (
+                    <span className="ml-1 text-[11px] font-medium text-black/40 dark:text-white/40">
+                      you
+                    </span>
+                  )}
+                </span>
+                <span className="font-bold">{t.score}</span>
+                <span className="w-12 text-right text-[11px] text-black/45 dark:text-white/45">
+                  {t.errors} {t.errors === 1 ? "err" : "errs"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- MATCH OVER ---------------- */}
+      {room.matchOver && (
+        <div className="wc-rise mt-6 rounded-3xl border border-black/10 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+          <div className="flex items-center gap-2">
+            <Trophy size={18} className="text-gold" />
+            <h2 className="text-lg font-bold">
+              {room.matchTotals[0]?.name} wins the match
+            </h2>
+          </div>
+          <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+            {room.matchTotals[0]?.score} points over {room.totalRounds}{" "}
+            {room.totalRounds === 1 ? "round" : "rounds"}.
+          </p>
+          {isHost ? (
+            <button
+              type="button"
+              onClick={() => socket?.emit("room:newmatch", { code, playerId: playerId() })}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"
+            >
+              <RotateCw size={16} />
+              Play again
+            </button>
+          ) : (
+            <p className="mt-4 text-xs text-black/45 dark:text-white/45">
+              The host can start another match.
+            </p>
+          )}
+          <Link
+            href="/"
+            className="ml-2 mt-5 inline-flex items-center gap-2 rounded-xl border border-black/15 px-4 py-2.5 text-sm font-semibold transition hover:border-brand/50 dark:border-white/20"
+          >
+            Leave
+          </Link>
+        </div>
+      )}
+
       {/* ---------------- LOBBY ---------------- */}
-      {!round && (
+      {!round && !room.matchOver && (
         <>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {room.members.map((m) => (
@@ -219,7 +297,7 @@ export function RoomClient({ code }: { code: string }) {
             </p>
             <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-xs text-black/60 dark:bg-white/5 dark:text-white/60">
               Everyone gets the same chain and races it on their own board. Most points wins,
-              fewest errors breaks a tie.
+              fewest errors breaks a tie. No word repeats across the whole match.
             </p>
 
             {isHost ? (
@@ -247,6 +325,28 @@ export function RoomClient({ code }: { code: string }) {
                     </button>
                   ))}
                 </div>
+                <p className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-black/45 dark:text-white/45">
+                  Rounds
+                </p>
+                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  {[1, 5, 10].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() =>
+                        socket?.emit("room:rounds", { code, playerId: playerId(), rounds: r })
+                      }
+                      aria-pressed={room.totalRounds === r}
+                      className={`rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
+                        room.totalRounds === r
+                          ? "border-brand bg-brand/5"
+                          : "border-black/10 hover:border-brand/40 dark:border-white/10"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   onClick={() => socket?.emit("room:start", { code, playerId: playerId() })}
@@ -259,7 +359,8 @@ export function RoomClient({ code }: { code: string }) {
               </>
             ) : (
               <p className="mt-4 rounded-xl bg-mist px-3 py-2.5 text-center text-sm text-black/60 dark:bg-white/5 dark:text-white/60">
-                Waiting for the host to start. Difficulty: {room.difficulty}.
+                Waiting for the host to start. {room.difficulty}, {room.totalRounds}{" "}
+                {room.totalRounds === 1 ? "round" : "rounds"}.
               </p>
             )}
           </div>
@@ -460,7 +561,7 @@ export function RoomClient({ code }: { code: string }) {
                   className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"
                 >
                   <RotateCw size={16} />
-                  Next chain
+                  {room.roundNumber >= room.totalRounds ? "Finish match" : "Next round"}
                 </button>
               )}
               <Link

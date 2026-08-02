@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { generateChain, type Chain, type Difficulty } from "@/lib/chains";
 import { makePlayers } from "@/lib/game";
 import { GameBoard } from "@/components/GameBoard";
@@ -14,11 +14,15 @@ export function PlayClient({
 }) {
   const [chain, setChain] = useState<Chain | null>(null);
   const [round, setRound] = useState(0);
+  // Words already seen this sitting, so back-to-back chains do not repeat.
+  const used = useRef<Set<string>>(new Set());
 
   // Walked on the client so every "New chain" is a fresh generation with no
   // round trip, and the server render stays cacheable.
   const deal = useCallback(() => {
-    setChain(generateChain(difficulty));
+    const next = generateChain(difficulty, { exclude: used.current });
+    if (next) for (const w of next.words) used.current.add(w);
+    setChain(next);
     setRound((r) => r + 1);
   }, [difficulty]);
 

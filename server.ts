@@ -2,16 +2,19 @@ import { createServer } from "node:http";
 import next from "next";
 import { Server as SocketServer } from "socket.io";
 import type { Difficulty } from "./lib/chains";
+import { ROUND_OPTIONS, type RoundCount } from "./lib/rooms";
 import {
   createRoom,
   joinRoom,
   leaveRoom,
   markOffline,
+  newMatch,
   nextChain,
   playGuess,
   playPass,
   publicView,
   setDifficulty,
+  setRounds,
   startGame,
   sweepRooms,
   SWEEP_EVERY_MS,
@@ -26,6 +29,8 @@ const handle = app.getRequestHandler();
 const VALID: Difficulty[] = ["easy", "medium", "hard"];
 const asDifficulty = (d: unknown): Difficulty =>
   (VALID as string[]).includes(String(d)) ? (d as Difficulty) : "easy";
+const asRounds = (r: unknown): RoundCount =>
+  (ROUND_OPTIONS as readonly number[]).includes(Number(r)) ? (Number(r) as RoundCount) : 5;
 
 type Ack = (res: { ok: boolean; error?: string; code?: string }) => void;
 const ok = (fn: unknown, payload: { ok: boolean; error?: string; code?: string }) => {
@@ -49,9 +54,15 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
     let joinedCode: string | null = null;
 
-    socket.on("room:create", ({ playerId, name, difficulty }, ack) => {
+    socket.on("room:create", ({ playerId, name, difficulty, rounds }, ack) => {
       if (!playerId) return ok(ack, { ok: false, error: "Missing player id." });
-      const room = createRoom(playerId, String(name || "Host").slice(0, 14), asDifficulty(difficulty), socket.id);
+      const room = createRoom(
+        playerId,
+        String(name || "Host").slice(0, 14),
+        asDifficulty(difficulty),
+        socket.id,
+        asRounds(rounds)
+      );
       joinedCode = room.code;
       socket.join(room.code);
       ok(ack, { ok: true, code: room.code });
@@ -70,6 +81,17 @@ app.prepare().then(() => {
 
     socket.on("room:difficulty", ({ code, playerId, difficulty }) => {
       setDifficulty(String(code), playerId, asDifficulty(difficulty));
+      broadcast(String(code));
+    });
+
+    socket.on("room:rounds", ({ code, playerId, rounds }) => {
+      setRounds(String(code), playerId, asRounds(rounds));
+      broadcast(String(code));
+    });
+
+    socket.on("room:newmatch", ({ code, playerId }, ack) => {
+      const res = newMatch(String(code), playerId);
+      ok(ack, res.ok ? { ok: true } : { ok: false, error: res.error });
       broadcast(String(code));
     });
 

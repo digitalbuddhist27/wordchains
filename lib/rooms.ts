@@ -35,12 +35,24 @@ export type Round = {
   boards: Map<string, GameState>;
 };
 
+export const ROUND_OPTIONS = [1, 5, 10] as const;
+export type RoundCount = (typeof ROUND_OPTIONS)[number];
+
+export type Totals = { score: number; errors: number };
+
 export type Room = {
   code: string;
   hostId: string;
   difficulty: Difficulty;
+  totalRounds: RoundCount;
+  roundNumber: number;
   members: Member[];
   round: Round | null;
+  /** Running match totals, so a finished round's score is never lost. */
+  totals: Map<string, Totals>;
+  /** Every word spent this match. Nothing repeats across rounds. */
+  usedWords: Set<string>;
+  matchOver: boolean;
   createdAt: number;
   touchedAt: number;
 };
@@ -60,8 +72,8 @@ function randomCode(): string {
   return rooms.has(code) ? randomCode() : code;
 }
 
-function pickChain(difficulty: Difficulty): Chain {
-  const chain = generateChain(difficulty);
+function pickChain(difficulty: Difficulty, exclude: ReadonlySet<string>): Chain {
+  const chain = generateChain(difficulty, { exclude });
   if (!chain) throw new Error(`could not generate a ${difficulty} chain`);
   return chain;
 }
@@ -85,15 +97,21 @@ export function createRoom(
   playerId: string,
   name: string,
   difficulty: Difficulty,
-  socketId: string
+  socketId: string,
+  totalRounds: RoundCount = 5
 ): Room {
   const code = randomCode();
   const room: Room = {
     code,
     hostId: playerId,
     difficulty,
+    totalRounds,
+    roundNumber: 0,
     members: [{ playerId, name, color: PLAYER_COLORS[0], socketId, online: true }],
     round: null,
+    totals: new Map(),
+    usedWords: new Set(),
+    matchOver: false,
     createdAt: Date.now(),
     touchedAt: Date.now(),
   };
@@ -189,6 +207,10 @@ export function startGame(code: string, playerId: string): JoinResult {
   if (room.hostId !== playerId) return { ok: false, error: "Only the host can start." };
   if (room.members.length < 2) return { ok: false, error: "Need at least 2 players." };
 
+  room.roundNumber = 0;
+  room.totals = new Map();
+  room.usedWords = new Set();
+  room.matchOver = false;
   deal(room);
   touch(room);
   return { ok: true, room };
@@ -196,24 +218,70 @@ export function startGame(code: string, playerId: string): JoinResult {
 
 /** One chain, one independent board per player. */
 function deal(room: Room) {
-  const chain = pickChain(room.difficulty);
+  const chain = pickChain(room.difficulty, room.usedWords);
+  for (const w of chain.words) room.usedWords.add(w);
+
   const boards = new Map<string, GameState>();
   for (const m of room.members) {
     const player: Player = { id: m.playerId, name: m.name, color: m.color, score: 0 };
     boards.set(m.playerId, initGame(chain, "solo", [player]));
+    if (!room.totals.has(m.playerId)) room.totals.set(m.playerId, { score: 0, errors: 0 });
   }
   room.round = { chain, boards };
+  room.roundNumber += 1;
 }
 
-/** Deal a fresh chain to the same table. */
+/** Fold the round that just ended into the match totals. */
+function bankRound(room: Room) {
+  if (!room.round) return;
+  for (const [id, board] of room.round.boards) {
+    const t = room.totals.get(id) ?? { score: 0, errors: 0 };
+    room.totals.set(id, {
+      score: t.score + (board.players[0]?.score ?? 0),
+      errors: t.errors + board.errors,
+    });
+  }
+}
+
+/** Bank the finished round and deal the next one, or end the match. */
 export function nextChain(code: string, playerId: string): JoinResult {
   const room = getRoom(code);
   if (!room) return { ok: false, error: "No game with that code." };
   if (room.hostId !== playerId) return { ok: false, error: "Only the host can deal again." };
+  if (room.matchOver) return { ok: false, error: "That match is finished." };
 
+  bankRound(room);
+  if (room.roundNumber >= room.totalRounds) {
+    room.matchOver = true;
+    room.round = null;
+    touch(room);
+    return { ok: true, room };
+  }
   deal(room);
   touch(room);
   return { ok: true, room };
+}
+
+/** Start a whole new match at the same table. */
+export function newMatch(code: string, playerId: string): JoinResult {
+  const room = getRoom(code);
+  if (!room) return { ok: false, error: "No game with that code." };
+  if (room.hostId !== playerId) return { ok: false, error: "Only the host can start a match." };
+  room.roundNumber = 0;
+  room.totals = new Map();
+  room.usedWords = new Set();
+  room.matchOver = false;
+  deal(room);
+  touch(room);
+  return { ok: true, room };
+}
+
+export function setRounds(code: string, playerId: string, totalRounds: RoundCount) {
+  const room = getRoom(code);
+  if (!room || room.hostId !== playerId || room.round) return room;
+  room.totalRounds = totalRounds;
+  touch(room);
+  return room;
 }
 
 function boardFor(room: Room, playerId: string) {
@@ -268,10 +336,29 @@ export function publicView(room: Room, forPlayerId: string) {
         .sort((a, b) => b.score - a.score || a.errors - b.errors)
     : [];
 
+  // Match totals include the round in progress, so the top scoreboard is live.
+  const matchTotals = room.members.map((m) => {
+    const banked = room.totals.get(m.playerId) ?? { score: 0, errors: 0 };
+    const live = round?.boards.get(m.playerId);
+    return {
+      playerId: m.playerId,
+      name: m.name,
+      color: m.color,
+      online: m.online,
+      score: banked.score + (live?.players[0]?.score ?? 0),
+      errors: banked.errors + (live?.errors ?? 0),
+    };
+  });
+  matchTotals.sort((a, b) => b.score - a.score || a.errors - b.errors);
+
   return {
     code: room.code,
     hostId: room.hostId,
     difficulty: room.difficulty,
+    totalRounds: room.totalRounds,
+    roundNumber: room.roundNumber,
+    matchOver: room.matchOver,
+    matchTotals,
     members: room.members.map((m) => ({
       playerId: m.playerId,
       name: m.name,

@@ -7,6 +7,8 @@ import type { Difficulty } from "@/lib/chains";
 import { playerId, savedName, saveName } from "@/lib/identity";
 import { useSocket } from "@/lib/useSocket";
 
+const ROUNDS = [1, 5, 10] as const;
+
 const DIFFICULTIES: { key: Difficulty; label: string }[] = [
   { key: "easy", label: "Easy" },
   { key: "medium", label: "Medium" },
@@ -19,6 +21,7 @@ export function OnlineLobbyEntry({ initialCode = "" }: { initialCode?: string })
   const [name, setName] = useState("");
   const [code, setCode] = useState(initialCode);
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [rounds, setRounds] = useState<number>(5);
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [error, setError] = useState("");
 
@@ -35,7 +38,7 @@ export function OnlineLobbyEntry({ initialCode = "" }: { initialCode?: string })
     saveName(trimmed);
     socket.emit(
       "room:create",
-      { playerId: playerId(), name: trimmed, difficulty },
+      { playerId: playerId(), name: trimmed, difficulty, rounds },
       (res: { ok: boolean; code?: string; error?: string }) => {
         setBusy(null);
         if (res.ok && res.code) router.push(`/room/${res.code}`);
@@ -105,6 +108,27 @@ export function OnlineLobbyEntry({ initialCode = "" }: { initialCode?: string })
             </button>
           ))}
         </div>
+        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-black/45 dark:text-white/45">
+          Rounds
+        </p>
+        <div className="mt-1.5 grid grid-cols-3 gap-2">
+          {ROUNDS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRounds(r)}
+              aria-pressed={rounds === r}
+              className={`rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
+                rounds === r
+                  ? "border-brand bg-brand/5"
+                  : "border-black/10 hover:border-brand/40 dark:border-white/10"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+
         <button
           type="button"
           onClick={create}
