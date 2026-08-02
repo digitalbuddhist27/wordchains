@@ -14,6 +14,8 @@ const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 4;
 const MAX_PLAYERS = 8;
 const ROOM_TTL_MS = 6 * 60 * 60 * 1000;
+/** Sweep runs often enough that a backgrounded phone always finds its room. */
+export const SWEEP_EVERY_MS = 30 * 60 * 1000;
 
 export type Member = {
   playerId: string;
@@ -165,11 +167,9 @@ export function markOffline(socketId: string): Room[] {
     m.online = false;
     m.socketId = null;
     touch(room);
-    // Nobody left in a lobby that never started: drop it.
-    if (!room.round && room.members.every((x) => !x.online)) {
-      rooms.delete(room.code);
-      continue;
-    }
+    // Do NOT delete an empty lobby here. Backgrounding Safari drops the
+    // socket, and a host who was alone in the room would come back to
+    // "no game with that code". Rooms only go away on the TTL sweep.
     affected.push(room);
   }
   return affected;

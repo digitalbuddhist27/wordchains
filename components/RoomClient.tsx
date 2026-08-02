@@ -316,9 +316,11 @@ export function RoomClient({ code }: { code: string }) {
             })}
           </div>
 
-          <p className="mt-4 text-center text-sm text-black/60 dark:text-white/60">
-            {done ? "You finished. Waiting on the rest." : "Solve your chain. No turns, just go."}
-          </p>
+          {done && (
+            <p className="mt-4 text-center text-sm text-black/60 dark:text-white/60">
+              You finished. Waiting on the rest.
+            </p>
+          )}
 
           <div className="mt-4 flex flex-col gap-2">
             {board.words.map((shown: string, i: number) => {

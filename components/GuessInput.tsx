@@ -7,8 +7,13 @@ import { CornerDownLeft } from "lucide-react";
  * Lives inside the active word tile, so the player types where the word will
  * appear instead of hunting for a separate field at the bottom of the board.
  *
- * The revealed letters stay in the field as a locked prefix: you only type the
- * letters that are still missing, and backspacing cannot eat the hint.
+ * Rendered as one slot per letter, matching the unsolved tiles exactly, with a
+ * transparent input on top capturing the typing. A centred text input drifted
+ * the letters away from their blanks, which read as the hint landing on the
+ * wrong slot.
+ *
+ * The revealed letters are a locked prefix: you only type what is still
+ * missing, and backspace cannot eat the hint.
  */
 export function GuessInput({
   value,
@@ -34,12 +39,12 @@ export function GuessInput({
   const ref = useRef<HTMLInputElement>(null);
   const locked = (lockedPrefix ?? word.slice(0, revealed)).toUpperCase();
   const maxLength = maxLengthOverride ?? word.length;
+  const caret = Math.min(value.length, maxLength - 1);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.focus({ preventScroll: true });
-    // Put the caret after the locked letters, never inside them.
     const end = el.value.length;
     el.setSelectionRange(end, end);
     el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -50,64 +55,67 @@ export function GuessInput({
     return upper.startsWith(locked) ? upper : locked + upper.replace(locked, "");
   }
 
-  function guardCaret() {
+  /** Typing always lands at the end, so the caret never sits inside the hint. */
+  function toEnd() {
     const el = ref.current;
     if (!el) return;
-    if ((el.selectionStart ?? 0) < locked.length) {
-      el.setSelectionRange(locked.length, Math.max(el.selectionEnd ?? 0, locked.length));
-    }
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
   }
-
-  const typed = value.length;
 
   return (
     <div className="flex w-full items-center gap-2">
-      <label htmlFor="guess" className="sr-only">
-        Guess the word, {maxLength} letters, starting with {locked}
-      </label>
-      <div className="min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1">
         <input
           id="guess"
           ref={ref}
           value={value}
           onChange={(e) => onChange(keepPrefix(e.target.value).slice(0, maxLength))}
           onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onSubmit();
-            return;
-          }
-          // Block deleting into the revealed letters.
-          const el = e.currentTarget;
-          const start = el.selectionStart ?? 0;
-          const end = el.selectionEnd ?? 0;
-          if (e.key === "Backspace" && start <= locked.length && start === end) e.preventDefault();
-          if (e.key === "Delete" && start < locked.length) e.preventDefault();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onSubmit();
+              return;
+            }
+            if (e.key === "Backspace" && value.length <= locked.length) e.preventDefault();
           }}
-          onSelect={guardCaret}
-          onClick={guardCaret}
+          onSelect={toEnd}
+          onClick={toEnd}
           maxLength={maxLength}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="characters"
           spellCheck={false}
           enterKeyHint="go"
-          className="w-full bg-transparent text-center text-xl font-bold uppercase tracking-[0.14em] outline-none sm:text-2xl"
+          aria-label={`Guess the word, ${maxLength} letters, starting with ${locked}`}
+          className="absolute inset-0 z-10 h-full w-full cursor-text bg-transparent text-transparent caret-transparent outline-none"
         />
-        {/* One dash per letter, so the word length stays visible while typing. */}
-        <span className="mt-1 flex justify-center gap-1.5" aria-hidden="true">
-          {Array.from({ length: maxLength }).map((_, i) => (
-            <span
-              key={i}
-              className={`h-0.5 w-5 rounded sm:w-6 ${
-                i < locked.length
-                  ? "bg-brand/70"
-                  : i < typed
-                    ? "bg-black/60 dark:bg-white/70"
-                    : "bg-black/25 dark:bg-white/30"
-              }`}
-            />
-          ))}
+        <span className="flex items-end justify-center gap-1.5" aria-hidden="true">
+          {Array.from({ length: maxLength }).map((_, i) => {
+            const char = value[i] ?? null;
+            const isLocked = i < locked.length;
+            const isCaret = i === caret && value.length < maxLength;
+            return (
+              <span key={i} className="flex w-5 flex-col items-center sm:w-6">
+                <span
+                  className={`text-xl font-bold leading-none sm:text-2xl ${
+                    char ? (isLocked ? "text-brand" : "") : "text-transparent"
+                  }`}
+                >
+                  {char ?? "\u00A0"}
+                </span>
+                <span
+                  className={`mt-1 h-0.5 w-full rounded ${
+                    isLocked
+                      ? "bg-brand/70"
+                      : isCaret
+                        ? "animate-pulse bg-brand"
+                        : "bg-black/25 dark:bg-white/30"
+                  }`}
+                />
+              </span>
+            );
+          })}
         </span>
       </div>
       <button

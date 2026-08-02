@@ -63,7 +63,7 @@ export function WordTile({
                   s.char ? "" : "text-transparent"
                 } ${s.char && s.key === revealed - 1 && revealed > 1 ? "wc-pop text-brand" : ""}`}
               >
-                {s.char ?? " "}
+                {s.char ?? "\u00A0"}
               </span>
               <span className="mt-1 h-0.5 w-full rounded bg-black/25 dark:bg-white/30" />
             </span>

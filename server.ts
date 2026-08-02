@@ -14,6 +14,7 @@ import {
   setDifficulty,
   startGame,
   sweepRooms,
+  SWEEP_EVERY_MS,
   getRoom,
 } from "./lib/rooms";
 
@@ -109,7 +110,7 @@ app.prepare().then(() => {
     });
   });
 
-  setInterval(sweepRooms, 30 * 60 * 1000).unref();
+  setInterval(sweepRooms, SWEEP_EVERY_MS).unref();
 
   server.listen(port, () => {
     console.log(`Word Chains listening on :${port} (${dev ? "dev" : "production"})`);
