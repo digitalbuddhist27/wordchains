@@ -205,13 +205,18 @@ export function RoomClient({ code }: { code: string }) {
                     )}
                   </span>
                 </div>
+                {/* No score before the game starts: a bold 0 next to the host
+                    badge just reads as "0 host". */}
                 <div className="mt-0.5 flex items-baseline gap-2">
-                  <span className="text-xl font-bold">{p.score}</span>
+                  {game && <span className="text-xl font-bold">{p.score}</span>}
                   {member?.online === false && (
                     <span className="text-[11px] text-black/35 dark:text-white/35">away</span>
                   )}
                   {room.hostId === p.id && (
                     <span className="text-[11px] font-semibold text-brand">host</span>
+                  )}
+                  {!game && room.hostId !== p.id && (
+                    <span className="text-[11px] text-black/35 dark:text-white/35">ready</span>
                   )}
                 </div>
               </div>
