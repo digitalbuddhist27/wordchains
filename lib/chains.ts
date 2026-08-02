@@ -49,12 +49,17 @@ const STARTS: Record<Tier, string[]> = {
  * How many ways out a word has. Hub words like OVER, WORK and HOUSE have many,
  * so an unweighted walk funnels through them and every chain starts to look the
  * same. Exploration order is weighted against them.
+ *
+ * The exponent is deliberately mild. Weighting too hard steers into rare words,
+ * and rare words have one exit, which produces its own repeated tails
+ * (HOUSE > PLANT > FOOD every game). Widening the corridors in links.ts is the
+ * real fix; this only takes the edge off the hubs.
  */
 const OUT_DEGREE = new Map<string, number>();
 for (const [from] of LINKS) OUT_DEGREE.set(from, (OUT_DEGREE.get(from) ?? 0) + 1);
 
 function spreadWeight(word: string) {
-  return 1 / Math.pow(1 + (OUT_DEGREE.get(word) ?? 0), 0.9);
+  return 1 / Math.pow(1 + (OUT_DEGREE.get(word) ?? 0), 0.5);
 }
 
 /** Small deterministic PRNG so the Daily Chain is the same for everyone. */
