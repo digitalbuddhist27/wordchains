@@ -41,6 +41,13 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
   const active = state.currentIndex;
   const done = state.status === "complete";
 
+  // The revealed letters stay in the field; you only type what is missing.
+  const prefix =
+    active >= 0 ? chain.words[active].slice(0, state.revealed[active]) : "";
+  useEffect(() => {
+    setGuess(prefix);
+  }, [prefix, active, state.currentPlayer]);
+
   useEffect(() => {
     const e = state.lastEvent;
     if (!e) return;
@@ -62,15 +69,13 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!guess.trim() || done) return;
+    if (done || guess.length <= prefix.length) return;
     setState((s) => submitGuess(s, guess));
-    setGuess("");
   }
 
   function handlePass() {
     if (done) return;
     setState((s) => miss(s));
-    setGuess("");
   }
 
   const summary = useMemo(() => summarize(state), [state]);
@@ -164,6 +169,7 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
                   onSubmit={handleSubmit}
                   word={w}
                   revealed={state.revealed[i]}
+                  lockedPrefix={w.slice(0, state.revealed[i])}
                   focusKey={`${i}-${state.currentPlayer}-${state.revealed[i]}`}
                 />
               ) : null}

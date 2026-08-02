@@ -31,8 +31,6 @@ export function RoomClient({ code }: { code: string }) {
     me.current = playerId();
   }, []);
 
-  // Join (or rejoin) whenever the socket connects, so a refresh or a dropped
-  // connection puts the player back in the same seat.
   useEffect(() => {
     if (!socket || !connected) return;
     socket.emit(
@@ -55,30 +53,35 @@ export function RoomClient({ code }: { code: string }) {
     };
   }, [socket, code]);
 
-  const game = room?.game ?? null;
-  const myTurn = !!game && game.currentPlayerId === me.current && game.status === "active";
+  const round = room?.round ?? null;
+  const board = round?.me ?? null;
   const isHost = room?.hostId === me.current;
-  const done = game?.status === "complete";
+  const done = board?.status === "complete";
+  const active = board?.currentIndex ?? -1;
+
+  // The revealed letters stay in the field; you only type what is missing.
+  const prefix = active >= 0 && board ? board.words[active] : "";
+  useEffect(() => {
+    setGuess(prefix);
+  }, [prefix, active, board?.revealed[active]]);
 
   useEffect(() => {
-    if (game?.lastEvent?.type === "miss") {
+    if (board?.lastEvent?.type === "miss") {
       setShaking(true);
       const t = setTimeout(() => setShaking(false), 420);
       return () => clearTimeout(t);
     }
-  }, [game?.lastEvent]);
+  }, [board?.lastEvent]);
 
   const submit = useCallback(() => {
-    if (!socket || !myTurn || !guess.trim()) return;
+    if (!socket || done || !guess.trim()) return;
     socket.emit("game:guess", { code, playerId: playerId(), guess });
-    setGuess("");
-  }, [socket, myTurn, guess, code]);
+  }, [socket, done, guess, code]);
 
   const pass = useCallback(() => {
-    if (!socket || !myTurn) return;
+    if (!socket || done) return;
     socket.emit("game:pass", { code, playerId: playerId() });
-    setGuess("");
-  }, [socket, myTurn, code]);
+  }, [socket, done, code]);
 
   async function copy(what: "code" | "link") {
     const text = what === "code" ? code : `${SITE_URL}/online?code=${code}`;
@@ -101,16 +104,15 @@ export function RoomClient({ code }: { code: string }) {
   }
 
   const banner = useMemo(() => {
-    const e = game?.lastEvent;
-    if (!e || !game) return null;
-    const who = (i: number) => game.players[i]?.name ?? "Someone";
+    const e = board?.lastEvent;
+    if (!e) return null;
     if (e.type === "correct")
-      return { tone: "good" as const, text: `${who(e.player)} got ${e.word} for ${e.points}` };
+      return { tone: "good" as const, text: `${e.word} for ${e.points}` };
     if (e.type === "auto") return { tone: "warn" as const, text: `${e.word} revealed. No points.` };
     if (e.type === "miss")
-      return { tone: "bad" as const, text: `${who(e.player)} missed. Letter ${e.revealed} revealed.` };
+      return { tone: "bad" as const, text: `Not it. Letter ${e.revealed} revealed.` };
     return null;
-  }, [game]);
+  }, [board?.lastEvent]);
 
   if (error) {
     return (
@@ -140,7 +142,6 @@ export function RoomClient({ code }: { code: string }) {
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 pb-16 pt-4">
-      {/* Room code header, always visible so anyone can read it out */}
       <div className="flex items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-white dark:bg-white/10">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
@@ -174,146 +175,157 @@ export function RoomClient({ code }: { code: string }) {
         </p>
       )}
 
-      {/* Player rail */}
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {(game?.players ?? room.members.map((m) => ({ id: m.playerId, name: m.name, color: m.color, score: 0 }))).map(
-          (p) => {
-            const member = room.members.find((m) => m.playerId === p.id);
-            const isTurn = game?.currentPlayerId === p.id && game?.status === "active";
-            return (
+      {/* ---------------- LOBBY ---------------- */}
+      {!round && (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {room.members.map((m) => (
               <div
-                key={p.id}
-                className={`rounded-2xl border px-3 py-2.5 transition ${
-                  isTurn
-                    ? "border-transparent bg-white shadow-[0_10px_30px_-16px_rgba(15,23,42,0.5)] dark:bg-white/10"
-                    : "border-black/10 bg-white/60 dark:border-white/10 dark:bg-white/[0.03]"
-                }`}
-                style={isTurn ? { boxShadow: `inset 0 0 0 2px ${p.color}` } : undefined}
+                key={m.playerId}
+                className="rounded-2xl border border-black/10 bg-white/60 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]"
               >
                 <div className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ background: p.color, opacity: member?.online === false ? 0.3 : 1 }}
+                    style={{ background: m.color, opacity: m.online ? 1 : 0.3 }}
                     aria-hidden="true"
                   />
                   <span className="truncate text-sm font-semibold">
-                    {p.name}
-                    {p.id === me.current && (
+                    {m.name}
+                    {m.playerId === me.current && (
                       <span className="ml-1 text-[11px] font-medium text-black/40 dark:text-white/40">
                         you
                       </span>
                     )}
                   </span>
                 </div>
-                {/* No score before the game starts: a bold 0 next to the host
-                    badge just reads as "0 host". */}
                 <div className="mt-0.5 flex items-baseline gap-2">
-                  {game && <span className="text-xl font-bold">{p.score}</span>}
-                  {member?.online === false && (
-                    <span className="text-[11px] text-black/35 dark:text-white/35">away</span>
-                  )}
-                  {room.hostId === p.id && (
+                  {room.hostId === m.playerId ? (
                     <span className="text-[11px] font-semibold text-brand">host</span>
-                  )}
-                  {!game && room.hostId !== p.id && (
+                  ) : (
                     <span className="text-[11px] text-black/35 dark:text-white/35">ready</span>
                   )}
                 </div>
               </div>
-            );
-          }
-        )}
-      </div>
+            ))}
+          </div>
 
-      {/* ---------------- LOBBY ---------------- */}
-      {!game && (
-        <div className="mt-6 rounded-3xl border border-black/10 bg-white p-5 dark:border-white/10 dark:bg-white/5">
-          <h2 className="text-lg font-bold">Waiting for players</h2>
-          <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-            {room.members.length < 2
-              ? "Send the code to someone. You need at least 2 players."
-              : `${room.members.length} in the room.`}
-          </p>
-
-          {isHost ? (
-            <>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {DIFFICULTIES.map((d) => (
-                  <button
-                    key={d.key}
-                    type="button"
-                    onClick={() =>
-                      socket?.emit("room:difficulty", {
-                        code,
-                        playerId: playerId(),
-                        difficulty: d.key,
-                      })
-                    }
-                    aria-pressed={room.difficulty === d.key}
-                    className={`rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
-                      room.difficulty === d.key
-                        ? "border-brand bg-brand/5"
-                        : "border-black/10 hover:border-brand/40 dark:border-white/10"
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  socket?.emit(
-                    "room:start",
-                    { code, playerId: playerId() },
-                    (res: { ok: boolean; error?: string }) => {
-                      if (!res.ok) setError("");
-                    }
-                  )
-                }
-                disabled={room.members.length < 2}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white transition hover:bg-brand-dark disabled:opacity-40"
-              >
-                <Play size={18} />
-                Start game
-              </button>
-            </>
-          ) : (
-            <p className="mt-4 rounded-xl bg-mist px-3 py-2.5 text-center text-sm text-black/60 dark:bg-white/5 dark:text-white/60">
-              Waiting for the host to start. Difficulty: {room.difficulty}.
+          <div className="mt-6 rounded-3xl border border-black/10 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+            <h2 className="text-lg font-bold">Waiting for players</h2>
+            <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+              {room.members.length < 2
+                ? "Send the code to someone. You need at least 2 players."
+                : `${room.members.length} in the room.`}
             </p>
-          )}
-        </div>
+            <p className="mt-3 rounded-xl bg-mist px-3 py-2.5 text-xs text-black/60 dark:bg-white/5 dark:text-white/60">
+              Everyone gets the same chain and races it on their own board. Most points wins,
+              fewest errors breaks a tie.
+            </p>
+
+            {isHost ? (
+              <>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {DIFFICULTIES.map((d) => (
+                    <button
+                      key={d.key}
+                      type="button"
+                      onClick={() =>
+                        socket?.emit("room:difficulty", {
+                          code,
+                          playerId: playerId(),
+                          difficulty: d.key,
+                        })
+                      }
+                      aria-pressed={room.difficulty === d.key}
+                      className={`rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
+                        room.difficulty === d.key
+                          ? "border-brand bg-brand/5"
+                          : "border-black/10 hover:border-brand/40 dark:border-white/10"
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => socket?.emit("room:start", { code, playerId: playerId() })}
+                  disabled={room.members.length < 2}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white transition hover:bg-brand-dark disabled:opacity-40"
+                >
+                  <Play size={18} />
+                  Start game
+                </button>
+              </>
+            ) : (
+              <p className="mt-4 rounded-xl bg-mist px-3 py-2.5 text-center text-sm text-black/60 dark:bg-white/5 dark:text-white/60">
+                Waiting for the host to start. Difficulty: {room.difficulty}.
+              </p>
+            )}
+          </div>
+        </>
       )}
 
-      {/* ---------------- BOARD ---------------- */}
-      {game && (
+      {/* ---------------- RACE ---------------- */}
+      {round && board && (
         <>
-          <p className="mt-4 text-center text-sm text-black/60 dark:text-white/60">
-            {done ? (
-              "Chain complete"
-            ) : myTurn ? (
-              <span className="font-semibold text-brand">Your turn</span>
-            ) : (
-              <>
-                Waiting on{" "}
-                <span
-                  className="font-semibold"
-                  style={{ color: game.players[game.currentPlayer]?.color }}
+          {/* live standings */}
+          <div className="mt-4 space-y-1.5">
+            {round.standings.map((s) => {
+              const isMe = s.playerId === me.current;
+              return (
+                <div
+                  key={s.playerId}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
+                    isMe ? "bg-white shadow-sm dark:bg-white/10" : "bg-white/50 dark:bg-white/[0.03]"
+                  }`}
+                  style={isMe ? { boxShadow: `inset 0 0 0 2px ${s.color}` } : undefined}
                 >
-                  {game.players[game.currentPlayer]?.name}
-                </span>
-              </>
-            )}
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: s.color, opacity: s.online ? 1 : 0.3 }}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    {s.name}
+                    {isMe && (
+                      <span className="ml-1 text-[11px] font-medium text-black/40 dark:text-white/40">
+                        you
+                      </span>
+                    )}
+                    {s.done && <span className="ml-2 text-[11px] font-semibold text-chain">done</span>}
+                  </span>
+                  <span
+                    className="h-1.5 w-16 overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
+                    aria-label={`${s.solvedCount} of ${s.total} solved`}
+                  >
+                    <span
+                      className="block h-full rounded-full transition-all"
+                      style={{
+                        width: `${(s.solvedCount / s.total) * 100}%`,
+                        background: s.color,
+                      }}
+                    />
+                  </span>
+                  <span className="w-8 text-right text-sm font-bold">{s.score}</span>
+                  <span className="w-12 text-right text-[11px] text-black/45 dark:text-white/45">
+                    {s.errors} {s.errors === 1 ? "err" : "errs"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 text-center text-sm text-black/60 dark:text-white/60">
+            {done ? "You finished. Waiting on the rest." : "Solve your chain. No turns, just go."}
           </p>
 
           <div className="mt-4 flex flex-col gap-2">
-            {game.words.map((shown, i) => {
-              const isActive = i === game.currentIndex && !done;
+            {board.words.map((shown: string, i: number) => {
+              const isActive = i === active && !done;
               const given =
-                i === 0 || (game.direction === "both-ends" && i === game.length - 1);
-              const solved = game.solved[i];
-              const blanks = game.lengths[i] - game.revealed[i];
+                i === 0 || (round.direction === "both-ends" && i === round.length - 1);
+              const solved = board.solved[i];
 
               return (
                 <div key={i} className="flex flex-col items-center gap-2">
@@ -337,31 +349,29 @@ export function RoomClient({ code }: { code: string }) {
                           : "border-dashed border-black/15 bg-white/60 dark:border-white/15 dark:bg-white/[0.03]"
                     } ${shaking && isActive ? "wc-shake" : ""}`}
                   >
-                    {isActive && myTurn ? (
+                    {isActive ? (
                       <GuessInput
                         value={guess}
                         onChange={setGuess}
                         onSubmit={submit}
-                        word={"?".repeat(game.lengths[i])}
+                        word={"?".repeat(round.lengths[i])}
                         revealed={0}
-                        placeholderOverride={
-                          shown + " _".repeat(Math.max(blanks, 0))
-                        }
-                        maxLengthOverride={game.lengths[i]}
-                        focusKey={`${i}-${game.revealed[i]}`}
+                        lockedPrefix={shown}
+                        maxLengthOverride={round.lengths[i]}
+                        focusKey={`${i}-${board.revealed[i]}`}
                       />
                     ) : solved ? (
                       <span className="text-xl font-bold tracking-[0.14em] sm:text-2xl">{shown}</span>
                     ) : (
                       <span className="flex items-end gap-1.5" aria-hidden="true">
-                        {Array.from({ length: game.lengths[i] }).map((_, li) => (
+                        {Array.from({ length: round.lengths[i] }).map((_, li) => (
                           <span key={li} className="flex w-5 flex-col items-center sm:w-6">
                             <span
                               className={`text-xl font-bold leading-none sm:text-2xl ${
-                                li < game.revealed[i] ? "" : "text-transparent"
+                                li < board.revealed[i] ? "" : "text-transparent"
                               }`}
                             >
-                              {li < game.revealed[i] ? shown[li] : " "}
+                              {li < board.revealed[i] ? shown[li] : " "}
                             </span>
                             <span className="mt-1 h-0.5 w-full rounded bg-black/25 dark:bg-white/30" />
                           </span>
@@ -401,68 +411,62 @@ export function RoomClient({ code }: { code: string }) {
             </p>
           )}
 
-          {!done && myTurn && (
+          {!done && (
             <button
               type="button"
               onClick={pass}
               className="mx-auto mt-5 flex items-center gap-1.5 rounded-xl border border-black/15 px-4 py-2.5 text-xs font-semibold text-black/60 transition hover:border-brand/50 hover:text-brand dark:border-white/20 dark:text-white/60"
             >
               <Eye size={14} />
-              Stuck? Reveal a letter and pass
+              Stuck? Reveal a letter (counts as an error)
             </button>
           )}
 
-          {done && game.summary && (
+          {done && (
             <div className="wc-rise mt-6 rounded-3xl border border-black/10 bg-white p-5 dark:border-white/10 dark:bg-white/5">
               <div className="flex items-center gap-2">
                 <Trophy size={18} className="text-gold" />
-                <h2 className="text-lg font-bold">Chain complete</h2>
+                <h2 className="text-lg font-bold">
+                  {round.everyoneDone ? "Round over" : "Chain complete"}
+                </h2>
               </div>
               <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-                {game.summary.winners.length > 1
-                  ? `Tie: ${game.summary.winners.map((p) => p.name).join(" and ")}`
-                  : `${game.summary.winners[0].name} wins`}
+                {round.everyoneDone
+                  ? `${round.standings[0].name} wins with ${round.standings[0].score}`
+                  : "Waiting for the others to finish."}
               </p>
 
-              <ul className="mt-4 space-y-1.5">
-                {game.summary.ranked.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ background: p.color }}
-                        aria-hidden="true"
-                      />
-                      {p.name}
-                    </span>
-                    <span className="font-bold">{p.score}</span>
-                  </li>
-                ))}
-              </ul>
+              <dl className="mt-4 grid grid-cols-2 gap-3 text-center">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-black/45 dark:text-white/45">
+                    Your score
+                  </dt>
+                  <dd className="text-2xl font-bold text-chain">{board.score}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-black/45 dark:text-white/45">
+                    Your errors
+                  </dt>
+                  <dd className="text-2xl font-bold">{board.errors}</dd>
+                </div>
+              </dl>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                {isHost && (
-                  <button
-                    type="button"
-                    onClick={() => socket?.emit("room:next", { code, playerId: playerId() })}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"
-                  >
-                    <RotateCw size={16} />
-                    Next chain
-                  </button>
-                )}
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-2 rounded-xl border border-black/15 px-4 py-2.5 text-sm font-semibold transition hover:border-brand/50 dark:border-white/20"
+              {isHost && (
+                <button
+                  type="button"
+                  onClick={() => socket?.emit("room:next", { code, playerId: playerId() })}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"
                 >
-                  Leave
-                </Link>
-              </div>
-              {!isHost && (
-                <p className="mt-3 text-xs text-black/45 dark:text-white/45">
-                  The host can deal another chain.
-                </p>
+                  <RotateCw size={16} />
+                  Next chain
+                </button>
               )}
+              <Link
+                href="/"
+                className="ml-2 mt-5 inline-flex items-center gap-2 rounded-xl border border-black/15 px-4 py-2.5 text-sm font-semibold transition hover:border-brand/50 dark:border-white/20"
+              >
+                Leave
+              </Link>
             </div>
           )}
         </>

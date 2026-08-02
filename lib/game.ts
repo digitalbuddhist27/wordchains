@@ -26,6 +26,8 @@ export type GameState = {
   status: "active" | "complete";
   lastEvent: GameEvent | null;
   turnStreak: number;
+  /** Misses, including passes. Every one exposed a letter. */
+  errors: number;
 };
 
 export type GameEvent =
@@ -74,6 +76,7 @@ export function initGame(chain: Chain, mode: Mode, players: Player[]): GameState
     status: "active",
     lastEvent: null,
     turnStreak: 0,
+    errors: 0,
   };
 }
 
@@ -170,6 +173,7 @@ export function miss(state: GameState, guess = ""): GameState {
     hintsUsed,
     currentPlayer: nextPlayer,
     turnStreak: 0,
+    errors: state.errors + 1,
     lastEvent: event,
   };
   const advanced = advance(next);
@@ -202,6 +206,7 @@ export function summarize(state: GameState) {
 
   return {
     totalScore: state.players.reduce((s, p) => s + p.score, 0),
+    errors: state.errors,
     totalHints,
     cleanSolves: firstTry.length,
     guessableCount: guessable.length,

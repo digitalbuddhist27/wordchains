@@ -23,12 +23,22 @@ export type Member = {
   online: boolean;
 };
 
+/**
+ * A round deals ONE chain to the whole room, but every player gets their own
+ * board and races through it independently. Nobody waits for a turn, and
+ * "fewest errors / most points" only compares fairly on identical words.
+ */
+export type Round = {
+  chain: Chain;
+  boards: Map<string, GameState>;
+};
+
 export type Room = {
   code: string;
   hostId: string;
   difficulty: Difficulty;
   members: Member[];
-  state: GameState | null;
+  round: Round | null;
   createdAt: number;
   touchedAt: number;
 };
@@ -81,7 +91,7 @@ export function createRoom(
     hostId: playerId,
     difficulty,
     members: [{ playerId, name, color: PLAYER_COLORS[0], socketId, online: true }],
-    state: null,
+    round: null,
     createdAt: Date.now(),
     touchedAt: Date.now(),
   };
@@ -110,7 +120,7 @@ export function joinRoom(
     return { ok: true, room };
   }
 
-  if (room.state) return { ok: false, error: "That game has already started." };
+  if (room.round) return { ok: false, error: "That game has already started." };
   if (room.members.length >= MAX_PLAYERS) return { ok: false, error: "That game is full." };
 
   room.members.push({
@@ -128,8 +138,8 @@ export function leaveRoom(code: string, playerId: string): Room | undefined {
   const room = getRoom(code);
   if (!room) return;
 
-  if (room.state) {
-    // Mid-game: keep their score on the board, just mark them gone.
+  if (room.round) {
+    // Mid-round: keep their board and score, just mark them gone.
     const m = room.members.find((x) => x.playerId === playerId);
     if (m) {
       m.online = false;
@@ -156,7 +166,7 @@ export function markOffline(socketId: string): Room[] {
     m.socketId = null;
     touch(room);
     // Nobody left in a lobby that never started: drop it.
-    if (!room.state && room.members.every((x) => !x.online)) {
+    if (!room.round && room.members.every((x) => !x.online)) {
       rooms.delete(room.code);
       continue;
     }
@@ -167,7 +177,7 @@ export function markOffline(socketId: string): Room[] {
 
 export function setDifficulty(code: string, playerId: string, difficulty: Difficulty) {
   const room = getRoom(code);
-  if (!room || room.hostId !== playerId || room.state) return room;
+  if (!room || room.hostId !== playerId || room.round) return room;
   room.difficulty = difficulty;
   touch(room);
   return room;
@@ -179,15 +189,20 @@ export function startGame(code: string, playerId: string): JoinResult {
   if (room.hostId !== playerId) return { ok: false, error: "Only the host can start." };
   if (room.members.length < 2) return { ok: false, error: "Need at least 2 players." };
 
-  const players: Player[] = room.members.map((m) => ({
-    id: m.playerId,
-    name: m.name,
-    color: m.color,
-    score: 0,
-  }));
-  room.state = initGame(pickChain(room.difficulty), "pass_and_play", players);
+  deal(room);
   touch(room);
   return { ok: true, room };
+}
+
+/** One chain, one independent board per player. */
+function deal(room: Room) {
+  const chain = pickChain(room.difficulty);
+  const boards = new Map<string, GameState>();
+  for (const m of room.members) {
+    const player: Player = { id: m.playerId, name: m.name, color: m.color, score: 0 };
+    boards.set(m.playerId, initGame(chain, "solo", [player]));
+  }
+  room.round = { chain, boards };
 }
 
 /** Deal a fresh chain to the same table. */
@@ -196,46 +211,63 @@ export function nextChain(code: string, playerId: string): JoinResult {
   if (!room) return { ok: false, error: "No game with that code." };
   if (room.hostId !== playerId) return { ok: false, error: "Only the host can deal again." };
 
-  const players: Player[] = room.members.map((m) => ({
-    id: m.playerId,
-    name: m.name,
-    color: m.color,
-    score: 0,
-  }));
-  room.state = initGame(pickChain(room.difficulty), "pass_and_play", players);
+  deal(room);
   touch(room);
   return { ok: true, room };
 }
 
-function isTheirTurn(room: Room, playerId: string) {
-  const s = room.state;
-  return !!s && s.status === "active" && s.players[s.currentPlayer]?.id === playerId;
+function boardFor(room: Room, playerId: string) {
+  return room.round?.boards.get(playerId) ?? null;
 }
 
 export function playGuess(code: string, playerId: string, text: string): JoinResult {
   const room = getRoom(code);
-  if (!room || !room.state) return { ok: false, error: "That game is not running." };
-  if (!isTheirTurn(room, playerId)) return { ok: false, error: "Not your turn." };
-  room.state = submitGuess(room.state, text);
+  const board = room ? boardFor(room, playerId) : null;
+  if (!room || !room.round || !board) return { ok: false, error: "That game is not running." };
+  room.round.boards.set(playerId, submitGuess(board, text));
   touch(room);
   return { ok: true, room };
 }
 
 export function playPass(code: string, playerId: string): JoinResult {
   const room = getRoom(code);
-  if (!room || !room.state) return { ok: false, error: "That game is not running." };
-  if (!isTheirTurn(room, playerId)) return { ok: false, error: "Not your turn." };
-  room.state = miss(room.state);
+  const board = room ? boardFor(room, playerId) : null;
+  if (!room || !room.round || !board) return { ok: false, error: "That game is not running." };
+  room.round.boards.set(playerId, miss(board));
   touch(room);
   return { ok: true, room };
 }
 
 /**
- * What every client in the room receives. Unsolved words are stripped to their
- * revealed prefix and length, so the answers never reach a player's browser.
+ * Built per player. A player sees their OWN board in full and only aggregate
+ * progress for everyone else, so one player's solved words never leak the
+ * answers to the rest of the room. Unsolved words on your own board are still
+ * stripped to their revealed prefix.
  */
-export function publicView(room: Room) {
-  const s = room.state;
+export function publicView(room: Room, forPlayerId: string) {
+  const round = room.round;
+  const mine = round?.boards.get(forPlayerId) ?? null;
+
+  const standings = round
+    ? room.members
+        .map((m) => {
+          const b = round.boards.get(m.playerId);
+          const solvedCount = b ? b.solved.filter(Boolean).length : 0;
+          return {
+            playerId: m.playerId,
+            name: m.name,
+            color: m.color,
+            online: m.online,
+            score: b?.players[0]?.score ?? 0,
+            errors: b?.errors ?? 0,
+            solvedCount,
+            total: round.chain.words.length,
+            done: b?.status === "complete",
+          };
+        })
+        .sort((a, b) => b.score - a.score || a.errors - b.errors)
+    : [];
+
   return {
     code: room.code,
     hostId: room.hostId,
@@ -246,24 +278,29 @@ export function publicView(room: Room) {
       color: m.color,
       online: m.online,
     })),
-    game: s
+    round: round
       ? {
-          direction: s.chain.direction,
-          length: s.chain.words.length,
-          words: s.chain.words.map((w, i) =>
-            s.solved[i] ? w : w.slice(0, s.revealed[i])
-          ),
-          lengths: s.chain.words.map((w) => w.length),
-          revealed: s.revealed,
-          solved: s.solved,
-          players: s.players,
-          currentPlayer: s.currentPlayer,
-          currentIndex: s.currentIndex,
-          currentPlayerId: s.players[s.currentPlayer]?.id ?? null,
-          turnStreak: s.turnStreak,
-          status: s.status,
-          lastEvent: s.lastEvent,
-          summary: s.status === "complete" ? summarize(s) : null,
+          direction: round.chain.direction,
+          length: round.chain.words.length,
+          lengths: round.chain.words.map((w) => w.length),
+          standings,
+          everyoneDone: standings.filter((s) => s.online).every((s) => s.done),
+          me: mine
+            ? {
+                words: mine.chain.words.map((w, i) =>
+                  mine.solved[i] ? w : w.slice(0, mine.revealed[i])
+                ),
+                revealed: mine.revealed,
+                solved: mine.solved,
+                currentIndex: mine.currentIndex,
+                score: mine.players[0]?.score ?? 0,
+                errors: mine.errors,
+                streak: mine.turnStreak,
+                status: mine.status,
+                lastEvent: mine.lastEvent,
+                summary: mine.status === "complete" ? summarize(mine) : null,
+              }
+            : null,
         }
       : null,
   };

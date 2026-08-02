@@ -35,9 +35,14 @@ app.prepare().then(() => {
   const server = createServer((req, res) => handle(req, res));
   const io = new SocketServer(server, { path: "/api/socket" });
 
+  // Each member gets their own view: their board in full, everyone else as
+  // standings only, so no player's progress leaks answers to the room.
   const broadcast = (code: string) => {
     const room = getRoom(code);
-    if (room) io.to(code).emit("room", publicView(room));
+    if (!room) return;
+    for (const m of room.members) {
+      if (m.socketId) io.to(m.socketId).emit("room", publicView(room, m.playerId));
+    }
   };
 
   io.on("connection", (socket) => {
