@@ -4,12 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Eye, RotateCw, Share2, Trophy } from "lucide-react";
 import { GuessInput } from "./GuessInput";
+import { ScoreGrid } from "./ScoreGrid";
 
 const SITE_URL = "https://playwordchains.com";
 import type { Chain } from "@/lib/chains";
 import {
   initGame,
   miss,
+  gradeWords,
   shareGrid,
   submitGuess,
   summarize,
@@ -100,7 +102,9 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
 
   async function share() {
     const grid = shareGrid(state);
-    const text = `${shareTitle ?? "Word Chains"}\n${grid}\n${summary.totalScore} pts, ${summary.totalHints} letters used`;
+    const text =
+      `${shareTitle ?? "Word Chains"}\n${grid}\n` +
+      `${summary.totalScore} pts · ${summary.cleanSolves} of ${summary.guessableCount} with no hints`;
     try {
       // Pass url separately so the OS attaches a real link and renders the
       // OpenGraph card. A bare domain in the text body stays unclickable.
@@ -235,6 +239,10 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
               </dd>
             </div>
           </dl>
+
+          <div className="mt-4">
+            <ScoreGrid grades={gradeWords(state)} />
+          </div>
 
           {!solo && (
             <ul className="mt-4 space-y-1.5">

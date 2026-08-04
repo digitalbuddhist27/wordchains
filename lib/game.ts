@@ -216,18 +216,53 @@ export function summarize(state: GameState) {
   };
 }
 
-/** Spoiler-free emoji grid: one square per guessable word, keyed to hints used. */
+/**
+ * How much of each word the player had to be shown, normalised so words of
+ * different lengths compare fairly.
+ *
+ * exposure = (letters shown - 1) / (letters you had to guess)
+ *   0 = solved off the free first letter alone
+ *   1 = never got it, the whole word was revealed
+ *
+ * The old version bucketed on the raw letter count, so 3 letters shown on a
+ * 4-letter word (75% given away) scored the same as 3 on an 8-letter word
+ * (25%). Same colour, wildly different achievement.
+ */
+export type WordGrade = "given" | "clean" | "light" | "medium" | "heavy" | "failed";
+
+export function gradeWords(state: GameState): { word: string; grade: WordGrade }[] {
+  return state.chain.words.map((word, i) => {
+    const shown = state.hintsUsed[i];
+    if (shown === null) return { word, grade: "given" as const };
+    if (shown >= word.length) return { word, grade: "failed" as const };
+
+    const guessable = Math.max(word.length - 1, 1);
+    const exposure = (shown - 1) / guessable;
+    if (exposure === 0) return { word, grade: "clean" as const };
+    if (exposure <= 1 / 3) return { word, grade: "light" as const };
+    if (exposure <= 2 / 3) return { word, grade: "medium" as const };
+    return { word, grade: "heavy" as const };
+  });
+}
+
+const GRADE_SQUARE: Record<WordGrade, string> = {
+  given: "⬜",
+  clean: "🟩",
+  light: "🟦",
+  medium: "🟨",
+  heavy: "🟧",
+  failed: "🟥",
+};
+
+/**
+ * Spoiler-free grid, one square per word INCLUDING the given ones, so the grid
+ * length always matches the chain length. Previously given words were dropped,
+ * which meant an 8-word both-ends chain shared as 6 squares.
+ */
 export function shareGrid(state: GameState) {
-  return state.chain.words
-    .map((w, i) => {
-      const h = state.hintsUsed[i];
-      if (h === null) return null;
-      if (h >= w.length) return "⬛";
-      if (h === 1) return "🟩";
-      if (h === 2) return "🟦";
-      if (h === 3) return "🟨";
-      return "🟧";
-    })
-    .filter(Boolean)
+  return gradeWords(state)
+    .map(({ grade }) => GRADE_SQUARE[grade])
     .join("");
 }
+
+export { GRADE_SQUARE };
