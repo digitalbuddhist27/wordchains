@@ -32,6 +32,7 @@ export type GameState = {
 
 export type GameEvent =
   | { type: "correct"; index: number; word: string; points: number; player: number }
+  | { type: "invalid"; guess: string }
   | { type: "miss"; index: number; guess: string; player: number; revealed: number }
   | { type: "auto"; index: number; word: string }
   | { type: "complete" };
@@ -98,12 +99,25 @@ function advance(state: GameState): GameState {
   return { ...state, currentIndex: next };
 }
 
-export function submitGuess(state: GameState, guess: string): GameState {
+/**
+ * `isWord` decides whether a wrong guess was at least a real English word.
+ * Nonsense is rejected outright: no letter revealed, no error charged, because
+ * a typo should not cost a hint. Omit it and every wrong guess counts as a miss.
+ */
+export function submitGuess(
+  state: GameState,
+  guess: string,
+  isWord?: (w: string) => boolean
+): GameState {
   if (state.status !== "active" || state.currentIndex < 0) return state;
 
   const i = state.currentIndex;
   const word = state.chain.words[i];
   const clean = normalize(guess);
+
+  if (clean !== word && isWord && !isWord(clean)) {
+    return { ...state, lastEvent: { type: "invalid", guess: clean } };
+  }
 
   if (clean && clean === word) {
     const points = scoreFor(word, state.revealed[i]);

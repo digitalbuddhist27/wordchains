@@ -66,7 +66,8 @@ export function RoomClient({ code }: { code: string }) {
   }, [prefix, active, board?.revealed[active]]);
 
   useEffect(() => {
-    if (board?.lastEvent?.type === "miss") {
+    const t = board?.lastEvent?.type;
+    if (t === "miss" || t === "invalid") {
       setShaking(true);
       const t = setTimeout(() => setShaking(false), 420);
       return () => clearTimeout(t);
@@ -108,6 +109,8 @@ export function RoomClient({ code }: { code: string }) {
     if (!e) return null;
     if (e.type === "correct")
       return { tone: "good" as const, text: `${e.word} for ${e.points}` };
+    if (e.type === "invalid")
+      return { tone: "warn" as const, text: `${e.guess} is not a word. No hint used.` };
     if (e.type === "auto") return { tone: "warn" as const, text: `${e.word} revealed. No points.` };
     if (e.type === "miss")
       return { tone: "bad" as const, text: `Not it. Letter ${e.revealed} revealed.` };

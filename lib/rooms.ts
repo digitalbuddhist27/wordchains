@@ -1,4 +1,5 @@
 import { generateChain, type Chain, type Difficulty } from "./chains";
+import { isRealWord } from "./dictionary";
 import {
   initGame,
   miss,
@@ -292,7 +293,7 @@ export function playGuess(code: string, playerId: string, text: string): JoinRes
   const room = getRoom(code);
   const board = room ? boardFor(room, playerId) : null;
   if (!room || !room.round || !board) return { ok: false, error: "That game is not running." };
-  room.round.boards.set(playerId, submitGuess(board, text));
+  room.round.boards.set(playerId, submitGuess(board, text, isRealWord));
   touch(room);
   return { ok: true, room };
 }

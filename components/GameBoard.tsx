@@ -53,7 +53,7 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
   useEffect(() => {
     const e = state.lastEvent;
     if (!e) return;
-    if (e.type === "miss") {
+    if (e.type === "miss" || e.type === "invalid") {
       setShaking(true);
       const t = setTimeout(() => setShaking(false), 420);
       return () => clearTimeout(t);
@@ -69,10 +69,27 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
     if (done) boardEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [done]);
 
-  function handleSubmit(e?: React.FormEvent) {
+  async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (done || guess.length <= prefix.length) return;
-    setState((s) => submitGuess(s, guess));
+    if (done || guess.length <= prefix.length || active < 0) return;
+
+    const clean = guess.trim().toUpperCase().replace(/[^A-Z]/g, "");
+
+    // A correct guess resolves instantly. Only a wrong one needs the
+    // dictionary, and only to decide "miss" versus "that is not a word".
+    if (clean === chain.words[active]) {
+      setState((s) => submitGuess(s, guess));
+      return;
+    }
+
+    let valid = true;
+    try {
+      const res = await fetch(`/api/validate?w=${encodeURIComponent(clean)}`);
+      valid = res.ok ? ((await res.json()) as { valid: boolean }).valid : true;
+    } catch {
+      valid = true; // network trouble should never block play
+    }
+    setState((s) => submitGuess(s, guess, () => valid));
   }
 
   function handlePass() {
@@ -88,6 +105,8 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
     if (!e) return null;
     if (e.type === "correct")
       return { tone: "good" as const, text: `${e.word} for ${e.points} ${e.points === 1 ? "point" : "points"}` };
+    if (e.type === "invalid")
+      return { tone: "warn" as const, text: `${e.guess} is not a word. No hint used.` };
     if (e.type === "auto")
       return { tone: "warn" as const, text: `${e.word} revealed. Nobody scored that one.` };
     if (e.type === "miss")
