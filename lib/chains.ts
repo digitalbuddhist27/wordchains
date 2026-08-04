@@ -13,13 +13,21 @@ export type Chain = {
 
 /** No word shorter than this may appear in a chain. */
 export const MIN_WORD_LENGTH = 4;
+/** Hard ceiling. Longer words do not fit a phone tile and are a slog to type. */
+export const MAX_WORD_LENGTH = 6;
 
-type Rules = { length: number; maxTier: Tier; bothEndsChance: number };
+type Rules = {
+  length: number;
+  maxTier: Tier;
+  /** Longest word this difficulty will use, never above MAX_WORD_LENGTH. */
+  maxWord: number;
+  bothEndsChance: number;
+};
 
 const RULES: Record<Difficulty, Rules> = {
-  easy: { length: 6, maxTier: 1, bothEndsChance: 0 },
-  medium: { length: 7, maxTier: 2, bothEndsChance: 0.15 },
-  hard: { length: 8, maxTier: 3, bothEndsChance: 0.25 },
+  easy: { length: 6, maxTier: 1, maxWord: 5, bothEndsChance: 0 },
+  medium: { length: 7, maxTier: 2, maxWord: 6, bothEndsChance: 0.15 },
+  hard: { length: 8, maxTier: 3, maxWord: 6, bothEndsChance: 0.25 },
 };
 
 /** from -> [to, ...] per tier ceiling, built once at module load. */
@@ -115,7 +123,8 @@ function walk(
   length: number,
   tier: Tier,
   rng: Rng,
-  exclude: ReadonlySet<string>
+  exclude: ReadonlySet<string>,
+  maxWord: number
 ): string[] | null {
   const adjacency = ADJACENCY[tier];
   const path = [start];
@@ -126,7 +135,7 @@ function walk(
     const next = adjacency.get(path[path.length - 1]);
     if (!next) return false;
     for (const word of spreadOrder(next, rng)) {
-      if (used.has(word) || exclude.has(word)) continue;
+      if (used.has(word) || exclude.has(word) || word.length > maxWord) continue;
       path.push(word);
       used.add(word);
       if (step()) return true;
@@ -163,8 +172,8 @@ export function generateChain(
   for (const exclude of [options.exclude ?? NONE, NONE]) {
     for (const tier of [rules.maxTier, 2, 3] as Tier[]) {
       for (const start of spreadOrder(STARTS[tier], rng)) {
-        if (exclude.has(start)) continue;
-        const words = walk(start, rules.length, tier, rng, exclude);
+        if (exclude.has(start) || start.length > rules.maxWord) continue;
+        const words = walk(start, rules.length, tier, rng, exclude, rules.maxWord);
         if (!words) continue;
         return {
           id: words.join("-").toLowerCase(),

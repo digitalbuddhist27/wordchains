@@ -5,8 +5,9 @@ import { dailyChain, dailyNumber } from "@/lib/daily";
 
 export const metadata = { title: "Daily Chain" };
 
-// One chain per UTC day; revalidate hourly so the rollover lands on time.
-export const revalidate = 3600;
+// One chain per Eastern day. Revalidate every minute so midnight Eastern
+// rollover shows up promptly rather than up to an hour late.
+export const revalidate = 60;
 
 export default function DailyPage() {
   const chain = dailyChain();

@@ -1,14 +1,51 @@
 import { generateSeeded, type Chain, type Difficulty } from "./chains";
 
-/** Days since the Word Chains epoch (2026-08-01), in UTC. */
+/**
+ * The Daily Chain rolls over at midnight Eastern, not UTC. UTC midnight is 8pm
+ * the previous evening in New York, so the "new" puzzle used to land during
+ * dinner the day before.
+ */
+export const DAILY_TIMEZONE = "America/New_York";
+
+const EPOCH = Date.UTC(2026, 7, 1); // 2026-08-01, day 1
+
+/** The calendar date in Eastern time, as a UTC timestamp of that Y/M/D. */
+function easternDay(date: Date) {
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DAILY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(date)
+    .split("-")
+    .map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+/** Days since the Word Chains epoch, counted in Eastern time. */
 export function dailyNumber(date = new Date()) {
-  const epoch = Date.UTC(2026, 7, 1);
-  const today = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return Math.floor((today - epoch) / 86_400_000) + 1;
+  return Math.floor((easternDay(date) - EPOCH) / 86_400_000) + 1;
 }
 
 export function dailyKey(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  return new Date(easternDay(date)).toISOString().slice(0, 10);
+}
+
+/** Seconds until the next Eastern midnight, so the page revalidates on time. */
+export function secondsUntilRollover(date = new Date()) {
+  const [h, m, sec] = new Intl.DateTimeFormat("en-GB", {
+    timeZone: DAILY_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .split(":")
+    .map(Number);
+  const elapsed = h * 3600 + m * 60 + sec;
+  return Math.max(60, 86_400 - elapsed);
 }
 
 /** Difficulty rotates so the daily is not always the same shape. */

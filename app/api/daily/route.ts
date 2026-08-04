@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
-import { dailyChain, dailyKey, dailyNumber } from "@/lib/daily";
+import {
+  DAILY_TIMEZONE,
+  dailyChain,
+  dailyKey,
+  dailyNumber,
+  secondsUntilRollover,
+} from "@/lib/daily";
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export async function GET() {
   return NextResponse.json({
     number: dailyNumber(),
     date: dailyKey(),
+    timezone: DAILY_TIMEZONE,
+    secondsUntilNext: secondsUntilRollover(),
     chain: dailyChain(),
   });
 }
