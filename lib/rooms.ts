@@ -380,6 +380,9 @@ export function publicView(room: Room, forPlayerId: string) {
                 ),
                 revealed: mine.revealed,
                 solved: mine.solved,
+                // Letters exposed when each word was solved, so the client can
+                // colour the tile by result and dim the letters it was shown.
+                hintsUsed: mine.hintsUsed,
                 currentIndex: mine.currentIndex,
                 score: mine.players[0]?.score ?? 0,
                 errors: mine.errors,

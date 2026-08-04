@@ -1,7 +1,8 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { letterSlots } from "@/lib/game";
+import { gradeWord, letterSlots } from "@/lib/game";
+import { BADGE_TONE, TILE_TONE } from "@/lib/tile-tone";
 
 type Props = {
   word: string;
@@ -12,6 +13,8 @@ type Props = {
   shaking: boolean;
   justSolved: boolean;
   position: number;
+  /** Letters exposed at the moment it was solved. Null while unsolved. */
+  hintsUsed: number | null;
   /** When active, the guess input renders inside the tile itself. */
   children?: React.ReactNode;
 };
@@ -25,9 +28,11 @@ export function WordTile({
   shaking,
   justSolved,
   position,
+  hintsUsed,
   children,
 }: Props) {
   const slots = letterSlots(word, revealed, solved);
+  const grade = gradeWord(word, hintsUsed);
 
   const label = solved
     ? `Word ${position}: ${word}, solved`
@@ -37,12 +42,13 @@ export function WordTile({
     "relative flex min-h-16 w-full items-center justify-center gap-1 rounded-2xl border-2 px-4 py-3 transition-colors";
 
   const tone = solved
-    ? given
-      ? "border-brand/40 bg-brand/5 dark:bg-brand/10"
-      : "border-chain/60 bg-chain/10"
+    ? TILE_TONE[grade]
     : active
       ? "border-brand bg-white shadow-[0_8px_28px_-12px_rgba(108,92,231,0.55)] dark:bg-white/5"
       : "border-dashed border-black/15 bg-white/60 dark:border-white/15 dark:bg-white/[0.03]";
+
+  // Letters you were shown are dimmed; the ones you supplied stay full strength.
+  const hinted = given ? word.length : (hintsUsed ?? 0);
 
   return (
     <div
@@ -53,7 +59,13 @@ export function WordTile({
       {children ? (
         children
       ) : solved ? (
-        <span className="text-xl font-bold tracking-[0.14em] sm:text-2xl">{word}</span>
+        <span className="text-xl font-bold tracking-[0.14em] sm:text-2xl">
+          {word.split("").map((ch, i) => (
+            <span key={i} className={i < hinted ? "opacity-40" : undefined}>
+              {ch}
+            </span>
+          ))}
+        </span>
       ) : (
         <span className="flex items-end gap-1.5" aria-hidden="true">
           {slots.map((s) => (
@@ -63,7 +75,7 @@ export function WordTile({
                   s.char ? "" : "text-transparent"
                 } ${s.char && s.key === revealed - 1 && revealed > 1 ? "wc-pop text-brand" : ""}`}
               >
-                {s.char ?? "\u00A0"}
+                {s.char ?? " "}
               </span>
               <span className="mt-1 h-0.5 w-full rounded bg-black/25 dark:bg-white/30" />
             </span>
@@ -72,7 +84,9 @@ export function WordTile({
       )}
 
       {solved && !given && (
-        <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-chain text-white shadow">
+        <span
+          className={`absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full text-white shadow ${BADGE_TONE[grade]}`}
+        >
           <Check size={14} strokeWidth={3} />
         </span>
       )}

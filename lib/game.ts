@@ -244,19 +244,25 @@ export function summarize(state: GameState) {
  */
 export type WordGrade = "given" | "clean" | "light" | "medium" | "heavy" | "failed";
 
-export function gradeWords(state: GameState): { word: string; grade: WordGrade }[] {
-  return state.chain.words.map((word, i) => {
-    const shown = state.hintsUsed[i];
-    if (shown === null) return { word, grade: "given" as const };
-    if (shown >= word.length) return { word, grade: "failed" as const };
+/** One word's grade from how many letters it had to show. Shared by the board
+ *  tiles, the end-of-chain grid and the shared emoji, so they can never drift. */
+export function gradeWord(word: string, shown: number | null): WordGrade {
+  if (shown === null) return "given";
+  if (shown >= word.length) return "failed";
 
-    const guessable = Math.max(word.length - 1, 1);
-    const exposure = (shown - 1) / guessable;
-    if (exposure === 0) return { word, grade: "clean" as const };
-    if (exposure <= 1 / 3) return { word, grade: "light" as const };
-    if (exposure <= 2 / 3) return { word, grade: "medium" as const };
-    return { word, grade: "heavy" as const };
-  });
+  const guessable = Math.max(word.length - 1, 1);
+  const exposure = (shown - 1) / guessable;
+  if (exposure === 0) return "clean";
+  if (exposure <= 1 / 3) return "light";
+  if (exposure <= 2 / 3) return "medium";
+  return "heavy";
+}
+
+export function gradeWords(state: GameState): { word: string; grade: WordGrade }[] {
+  return state.chain.words.map((word, i) => ({
+    word,
+    grade: gradeWord(word, state.hintsUsed[i]),
+  }));
 }
 
 const GRADE_SQUARE: Record<WordGrade, string> = {

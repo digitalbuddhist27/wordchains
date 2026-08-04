@@ -9,6 +9,8 @@ import type { RoomView } from "@/lib/rooms";
 import { playerId, savedName } from "@/lib/identity";
 import { useSocket } from "@/lib/useSocket";
 import { GuessInput } from "./GuessInput";
+import { gradeWord } from "@/lib/game";
+import { BADGE_TONE, TILE_TONE } from "@/lib/tile-tone";
 
 const SITE_URL = "https://playwordchains.com";
 const DIFFICULTIES: { key: Difficulty; label: string }[] = [
@@ -432,6 +434,10 @@ export function RoomClient({ code }: { code: string }) {
               const given =
                 i === 0 || (round.direction === "both-ends" && i === round.length - 1);
               const solved = board.solved[i];
+              const hints = board.hintsUsed[i];
+              // The client never receives unsolved answers, only lengths, which
+              // is all the grade needs.
+              const grade = gradeWord("x".repeat(round.lengths[i]), hints);
 
               return (
                 <div key={i} className="flex flex-col items-center gap-2">
@@ -447,9 +453,7 @@ export function RoomClient({ code }: { code: string }) {
                   <div
                     className={`relative flex min-h-16 w-full items-center justify-center rounded-2xl border-2 px-4 py-3 transition-colors ${
                       solved
-                        ? given
-                          ? "border-brand/40 bg-brand/5 dark:bg-brand/10"
-                          : "border-chain/60 bg-chain/10"
+                        ? TILE_TONE[grade]
                         : isActive
                           ? "border-brand bg-white shadow-[0_8px_28px_-12px_rgba(108,92,231,0.55)] dark:bg-white/5"
                           : "border-dashed border-black/15 bg-white/60 dark:border-white/15 dark:bg-white/[0.03]"
@@ -467,7 +471,18 @@ export function RoomClient({ code }: { code: string }) {
                         focusKey={`${i}-${board.revealed[i]}`}
                       />
                     ) : solved ? (
-                      <span className="text-xl font-bold tracking-[0.14em] sm:text-2xl">{shown}</span>
+                      <span className="text-xl font-bold tracking-[0.14em] sm:text-2xl">
+                        {shown.split("").map((ch: string, li: number) => (
+                          <span
+                            key={li}
+                            className={
+                              li < (given ? shown.length : (hints ?? 0)) ? "opacity-40" : undefined
+                            }
+                          >
+                            {ch}
+                          </span>
+                        ))}
+                      </span>
                     ) : (
                       <span className="flex items-end gap-1.5" aria-hidden="true">
                         {Array.from({ length: round.lengths[i] }).map((_, li) => (

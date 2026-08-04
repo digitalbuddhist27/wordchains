@@ -184,6 +184,7 @@ export function GameBoard({ chain, mode, players, shareTitle, onReplay }: Props)
               shaking={shaking && i === active}
               justSolved={flash === i}
               position={i + 1}
+              hintsUsed={state.hintsUsed[i]}
             >
               {i === active && !done ? (
                 <GuessInput
