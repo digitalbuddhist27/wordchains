@@ -3,10 +3,11 @@
 import type { WordGrade } from "@/lib/game";
 
 /**
- * The same grid the player shares, drawn on screen so the colours are
- * learnable rather than arbitrary. One tile per word, coloured by how much of
- * the word had to be shown as a fraction of its length, so a 4-letter word and
- * a 9-letter word are judged on the same scale.
+ * The same result the player shares, drawn on screen so the colours are
+ * learnable rather than arbitrary. One bar per word stacked top to bottom, the
+ * way the board reads, with each bar as long as its word and coloured by how
+ * much of it had to be shown as a fraction of its length. That normalisation is
+ * what lets a 4-letter word and a 6-letter word be judged on the same scale.
  */
 const TONE: Record<WordGrade, { bg: string; label: string }> = {
   given: { bg: "bg-black/15 dark:bg-white/20", label: "given" },
@@ -22,17 +23,16 @@ const LEGEND: WordGrade[] = ["clean", "light", "medium", "heavy", "failed"];
 export function ScoreGrid({ grades }: { grades: { word: string; grade: WordGrade }[] }) {
   return (
     <div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-col gap-1">
         {grades.map((g, i) => (
-          <span
-            key={i}
-            className={`h-6 w-6 rounded ${TONE[g.grade].bg}`}
-            title={`${g.word}: ${TONE[g.grade].label}`}
-            aria-label={`${g.word}, ${TONE[g.grade].label}`}
-          />
+          <span key={i} className="flex gap-1" aria-label={`${g.word}: ${TONE[g.grade].label}`}>
+            {Array.from({ length: g.word.length }).map((_, j) => (
+              <span key={j} className={`h-4 w-4 rounded-sm ${TONE[g.grade].bg}`} />
+            ))}
+          </span>
         ))}
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
         {LEGEND.map((g) => (
           <span
             key={g}

@@ -275,14 +275,15 @@ const GRADE_SQUARE: Record<WordGrade, string> = {
 };
 
 /**
- * Spoiler-free grid, one square per word INCLUDING the given ones, so the grid
- * length always matches the chain length. Previously given words were dropped,
- * which meant an 8-word both-ends chain shared as 6 squares.
+ * Spoiler-free result, one BAR per word stacked top to bottom so it reads like
+ * the board itself. Each bar is as long as the word and coloured by how much of
+ * it you had to be shown. Given words are included, so the stack height always
+ * matches the chain length.
  */
 export function shareGrid(state: GameState) {
   return gradeWords(state)
-    .map(({ grade }) => GRADE_SQUARE[grade])
-    .join("");
+    .map(({ word, grade }) => GRADE_SQUARE[grade].repeat(word.length))
+    .join("\n");
 }
 
 export { GRADE_SQUARE };
